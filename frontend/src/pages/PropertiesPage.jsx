@@ -8,6 +8,7 @@ export default function PropertiesPage() {
   const [searchParams] = useSearchParams();
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [cities, setCities] = useState([]);
 
   // Filters state
   const [search, setSearch] = useState(searchParams.get('search') || '');
@@ -15,6 +16,14 @@ export default function PropertiesPage() {
   const [bedrooms, setBedrooms] = useState('All');
   const [furnished, setFurnished] = useState('All');
   const [maxPrice, setMaxPrice] = useState(400);
+
+  // Cities come from whatever is actually in the catalogue, so the filter
+  // stays correct as coverage grows instead of hardcoding a list.
+  useEffect(() => {
+    api.get('/properties/cities')
+      .then((res) => setCities(res.data.cities || []))
+      .catch(() => setCities([]));
+  }, []);
 
   useEffect(() => {
     fetchProperties();
@@ -144,17 +153,17 @@ export default function PropertiesPage() {
           
           <div>
             <label className="block text-slate-400 mb-1">Target City</label>
-            <select 
+            <select
               value={city}
               onChange={(e) => setCity(e.target.value)}
               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none"
             >
               <option value="All">All Cities</option>
-              <option value="Bhopal">Bhopal</option>
-              <option value="Indore">Indore</option>
-              <option value="Bengaluru">Bengaluru</option>
-              <option value="Mumbai">Mumbai</option>
-              <option value="Delhi">Delhi</option>
+              {cities.map((c) => (
+                <option key={c.city} value={c.city}>
+                  {c.city} ({c.listings})
+                </option>
+              ))}
             </select>
           </div>
 

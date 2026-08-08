@@ -23,6 +23,10 @@ const SELF_SIGNUP_ROLES = ['Buyer', 'Seller'];
 
 const isProd = () => process.env.NODE_ENV === 'production';
 
+// Postgres returns BIGINT as a string. Comparing "1765..." < Date.now() happens
+// to coerce correctly, but arithmetic on it does not — normalise at the edge.
+const ms = (v) => (v == null ? null : Number(v));
+
 // When the SPA and API sit on different registrable domains (e.g. a Vercel
 // frontend calling a Render backend), the browser treats auth XHR as
 // cross-site and Lax cookies are never sent. Set COOKIE_SAMESITE=none there.
@@ -56,11 +60,15 @@ function clearAuthCookies(res) {
   res.clearCookie(REFRESH_COOKIE, clearOpts());
 }
 
-/** Issue a token pair, persist the refresh token, set cookies. */
-function issueSession(res, req, user) {
+/**
+ * Issue a token pair, persist the refresh token, set cookies.
+ * Async since the Postgres migration — the caller MUST await, or the refresh
+ * token may not be committed before the container freezes.
+ */
+async function issueSession(res, req, user) {
   const pair = generateTokenPair(user);
   const ctx = reqContext(req);
-  users.storeRefreshToken({
+  await users.storeRefreshToken({
     userId: user.id,
     token: pair.refresh,
     expiresAt: expiresAt(REFRESH_MAX_AGE),
@@ -93,7 +101,7 @@ exports.register = async (req, res) => {
     // Privilege escalation guard: ignore any role outside the self-signup set.
     const requestedRole = SELF_SIGNUP_ROLES.includes(role) ? role : 'Buyer';
 
-    if (users.findByEmail(email)) {
+    if (await users.findByEmail(email)) {
       // Do not reveal that the address is registered.
       return res.status(201).json({
         message: 'Registration received. Check your email to verify your account.',
@@ -101,10 +109,10 @@ exports.register = async (req, res) => {
     }
 
     const passwordHash = await hashPassword(password);
-    const user = users.createUser({ name, email, passwordHash, role: requestedRole, phone });
+    const user = await users.createUser({ name, email, passwordHash, role: requestedRole, phone });
 
     const token = generateSecureToken();
-    users.storeVerificationToken({
+    await users.storeVerificationToken({
       userId: user.id, token, purpose: 'verify_email', expiresAt: expiresAt(VERIFY_TOKEN_TTL),
     });
 
@@ -113,7 +121,7 @@ exports.register = async (req, res) => {
     console.log(`[email] Verify ${user.email}:\n${link}`);
     console.log('========================================\n');
 
-    logAuthEvent({ userId: user.id, eventType: 'register', ...ctx, success: true, detail: `role=${requestedRole}` });
+    await logAuthEvent({ userId: user.id, eventType: 'register', ...ctx, success: true, detail: `role=${requestedRole}` });
 
     res.status(201).json({
       message: 'Registration successful. Check your email to verify your account.',
@@ -135,21 +143,21 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const row = users.findByEmail(email);
+    const row = await users.findByEmail(email);
 
     // Uniform failure response — never disclose whether the account exists.
     const invalid = () => res.status(401).json({ message: 'Invalid email or password' });
 
     if (!row) {
-      logAuthEvent({ userId: null, eventType: 'login_failure', ...ctx, success: false, detail: 'unknown account' });
+      await logAuthEvent({ userId: null, eventType: 'login_failure', ...ctx, success: false, detail: 'unknown account' });
       // Match the timing of a real verify so absence isn't detectable.
       await hashPassword(String(password));
       return invalid();
     }
 
     if (users.isLocked(row)) {
-      const mins = Math.ceil((row.locked_until - Date.now()) / 60000);
-      logAuthEvent({ userId: row.id, eventType: 'login_failure', ...ctx, success: false, detail: 'account locked' });
+      const mins = Math.ceil((ms(row.locked_until) - Date.now()) / 60000);
+      await logAuthEvent({ userId: row.id, eventType: 'login_failure', ...ctx, success: false, detail: 'account locked' });
       return res.status(423).json({
         message: `Account locked after repeated failed attempts. Try again in ${mins} minute(s).`,
         code: 'ACCOUNT_LOCKED',
@@ -158,8 +166,8 @@ exports.login = async (req, res) => {
 
     const ok = await verifyPassword(row.password_hash, password);
     if (!ok) {
-      const { locked, attempts } = users.recordFailedAttempt(row.id);
-      logAuthEvent({
+      const { locked, attempts } = await users.recordFailedAttempt(row.id);
+      await logAuthEvent({
         userId: row.id, eventType: locked ? 'account_locked' : 'login_failure',
         ...ctx, success: false, detail: `attempt ${attempts}`,
       });
@@ -172,11 +180,11 @@ exports.login = async (req, res) => {
       return invalid();
     }
 
-    users.resetFailedAttempts(row.id);
+    await users.resetFailedAttempts(row.id);
     const user = users.toUser(row);
 
     if (!user.emailVerified) {
-      logAuthEvent({ userId: user.id, eventType: 'login_failure', ...ctx, success: false, detail: 'email unverified' });
+      await logAuthEvent({ userId: user.id, eventType: 'login_failure', ...ctx, success: false, detail: 'email unverified' });
       return res.status(403).json({
         message: 'Please verify your email before signing in.',
         code: 'EMAIL_UNVERIFIED',
@@ -186,20 +194,20 @@ exports.login = async (req, res) => {
     // MFA gate — issue no session until the code is verified.
     if (user.mfaEnabled) {
       const mfaTicket = generateSecureToken();
-      users.storeVerificationToken({
+      await users.storeVerificationToken({
         userId: user.id, token: mfaTicket, purpose: 'reset_password', expiresAt: expiresAt(5 * 60 * 1000),
       });
       return res.json({ mfaRequired: true, mfaTicket, message: 'Enter your authenticator code' });
     }
 
     if (MFA_REQUIRED_ROLES.includes(user.role) && !user.mfaEnabled) {
-      issueSession(res, req, user);
-      logAuthEvent({ userId: user.id, eventType: 'login_success', ...ctx, success: true, detail: 'mfa enrollment required' });
+      await issueSession(res, req, user);
+      await logAuthEvent({ userId: user.id, eventType: 'login_success', ...ctx, success: true, detail: 'mfa enrollment required' });
       return res.json({ user, mfaEnrollmentRequired: true, message: `${user.role} accounts must enable two-factor authentication.` });
     }
 
-    issueSession(res, req, user);
-    logAuthEvent({ userId: user.id, eventType: 'login_success', ...ctx, success: true });
+    await issueSession(res, req, user);
+    await logAuthEvent({ userId: user.id, eventType: 'login_success', ...ctx, success: true });
     res.json({ user, message: 'Login successful' });
   } catch (error) {
     console.error('[login]', error);
@@ -217,27 +225,27 @@ exports.verifyMfa = async (req, res) => {
       return res.status(400).json({ message: 'Ticket and code are required' });
     }
 
-    const record = users.findVerificationToken(mfaTicket, 'reset_password');
-    if (!record || record.used_at || record.expires_at < Date.now()) {
+    const record = await users.findVerificationToken(mfaTicket, 'reset_password');
+    if (!record || record.used_at || ms(record.expires_at) < Date.now()) {
       return res.status(401).json({ message: 'Login session expired. Sign in again.' });
     }
 
-    const secret = users.getMfaSecret(record.user_id);
+    const secret = await users.getMfaSecret(record.user_id);
     if (!secret) return res.status(400).json({ message: 'MFA is not configured' });
 
     if (!TOTP.verify({ token: String(code).trim(), secret })) {
-      logAuthEvent({ userId: record.user_id, eventType: 'mfa_failure', ...ctx, success: false });
-      users.recordFailedAttempt(record.user_id);
+      await logAuthEvent({ userId: record.user_id, eventType: 'mfa_failure', ...ctx, success: false });
+      await users.recordFailedAttempt(record.user_id);
       return res.status(401).json({ message: 'Invalid authenticator code' });
     }
 
-    users.consumeVerificationToken(record.id);
-    users.resetFailedAttempts(record.user_id);
+    await users.consumeVerificationToken(record.id);
+    await users.resetFailedAttempts(record.user_id);
 
-    const user = users.findById(record.user_id);
-    issueSession(res, req, user);
-    logAuthEvent({ userId: user.id, eventType: 'mfa_success', ...ctx, success: true });
-    logAuthEvent({ userId: user.id, eventType: 'login_success', ...ctx, success: true, detail: 'via MFA' });
+    const user = await users.findById(record.user_id);
+    await issueSession(res, req, user);
+    await logAuthEvent({ userId: user.id, eventType: 'mfa_success', ...ctx, success: true });
+    await logAuthEvent({ userId: user.id, eventType: 'login_success', ...ctx, success: true, detail: 'via MFA' });
 
     res.json({ user, message: 'Login successful' });
   } catch (error) {
@@ -262,7 +270,7 @@ exports.refresh = async (req, res) => {
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
-    const stored = users.findRefreshToken(token);
+    const stored = await users.findRefreshToken(token);
     if (!stored) {
       clearAuthCookies(res);
       return res.status(401).json({ message: 'Refresh token not recognized' });
@@ -270,8 +278,8 @@ exports.refresh = async (req, res) => {
 
     // Reuse of an already-revoked token indicates theft: kill the whole family.
     if (stored.revoked_at) {
-      const killed = users.revokeAllUserTokens(stored.user_id);
-      logAuthEvent({
+      const killed = await users.revokeAllUserTokens(stored.user_id);
+      await logAuthEvent({
         userId: stored.user_id, eventType: 'refresh_reuse_detected', ...ctx, success: false,
         detail: `revoked ${killed} tokens`,
       });
@@ -282,21 +290,21 @@ exports.refresh = async (req, res) => {
       });
     }
 
-    if (stored.expires_at < Date.now()) {
+    if (ms(stored.expires_at) < Date.now()) {
       clearAuthCookies(res);
       return res.status(401).json({ message: 'Refresh token expired' });
     }
 
     // Rotate: revoke the old, issue a new pair.
-    users.revokeRefreshToken(token);
-    const user = users.findById(payload.id);
+    await users.revokeRefreshToken(token);
+    const user = await users.findById(payload.id);
     if (!user) {
       clearAuthCookies(res);
       return res.status(401).json({ message: 'User no longer exists' });
     }
 
-    issueSession(res, req, user);
-    logAuthEvent({ userId: user.id, eventType: 'token_refresh', ...ctx, success: true });
+    await issueSession(res, req, user);
+    await logAuthEvent({ userId: user.id, eventType: 'token_refresh', ...ctx, success: true });
     res.json({ user, message: 'Token refreshed' });
   } catch (error) {
     console.error('[refresh]', error);
@@ -310,9 +318,9 @@ exports.logout = async (req, res) => {
   const ctx = reqContext(req);
   try {
     const token = req.cookies?.[REFRESH_COOKIE];
-    if (token) users.revokeRefreshToken(token);
+    if (token) await users.revokeRefreshToken(token);
     clearAuthCookies(res);
-    logAuthEvent({ userId: req.user?.id || null, eventType: 'logout', ...ctx, success: true });
+    await logAuthEvent({ userId: req.user?.id || null, eventType: 'logout', ...ctx, success: true });
     res.json({ message: 'Logged out' });
   } catch (error) {
     clearAuthCookies(res);
@@ -323,7 +331,7 @@ exports.logout = async (req, res) => {
 // --------------------------------------------------------------------- me
 
 exports.getMe = async (req, res) => {
-  const user = users.findById(req.user.id);
+  const user = await users.findById(req.user.id);
   if (!user) return res.status(404).json({ message: 'User not found' });
   res.json({ user });
 };
@@ -336,14 +344,14 @@ exports.verifyEmail = async (req, res) => {
     const { token } = req.body || {};
     if (!token) return res.status(400).json({ message: 'Token required' });
 
-    const record = users.findVerificationToken(token, 'verify_email');
-    if (!record || record.used_at || record.expires_at < Date.now()) {
+    const record = await users.findVerificationToken(token, 'verify_email');
+    if (!record || record.used_at || ms(record.expires_at) < Date.now()) {
       return res.status(400).json({ message: 'This verification link is invalid or has expired.' });
     }
 
-    users.consumeVerificationToken(record.id);
-    users.setEmailVerified(record.user_id);
-    logAuthEvent({ userId: record.user_id, eventType: 'email_verified', ...ctx, success: true });
+    await users.consumeVerificationToken(record.id);
+    await users.setEmailVerified(record.user_id);
+    await logAuthEvent({ userId: record.user_id, eventType: 'email_verified', ...ctx, success: true });
 
     res.json({ message: 'Email verified. You can now sign in.' });
   } catch (error) {
@@ -362,11 +370,11 @@ exports.forgotPassword = async (req, res) => {
     const generic = { message: 'If that email is registered, a reset link has been sent.' };
     if (!email) return res.json(generic);
 
-    const row = users.findByEmail(email);
+    const row = await users.findByEmail(email);
     if (!row) return res.json(generic);
 
     const token = generateSecureToken();
-    users.storeVerificationToken({
+    await users.storeVerificationToken({
       userId: row.id, token, purpose: 'reset_password', expiresAt: expiresAt(RESET_TOKEN_TTL),
     });
 
@@ -375,7 +383,7 @@ exports.forgotPassword = async (req, res) => {
     console.log(`[email] Password reset:\n${link}`);
     console.log('========================================\n');
 
-    logAuthEvent({ userId: row.id, eventType: 'password_reset_requested', ...ctx, success: true });
+    await logAuthEvent({ userId: row.id, eventType: 'password_reset_requested', ...ctx, success: true });
     res.json(generic);
   } catch (error) {
     console.error('[forgotPassword]', error);
@@ -389,8 +397,8 @@ exports.resetPassword = async (req, res) => {
     const { token, password } = req.body || {};
     if (!token || !password) return res.status(400).json({ message: 'Token and new password are required' });
 
-    const record = users.findVerificationToken(token, 'reset_password');
-    if (!record || record.used_at || record.expires_at < Date.now()) {
+    const record = await users.findVerificationToken(token, 'reset_password');
+    if (!record || record.used_at || ms(record.expires_at) < Date.now()) {
       return res.status(400).json({ message: 'This reset link is invalid or has expired.' });
     }
 
@@ -399,12 +407,12 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ message: pw.errors[0], errors: pw.errors, breached: !!pw.breached });
     }
 
-    users.consumeVerificationToken(record.id);
-    users.setPassword(record.user_id, await hashPassword(password));
+    await users.consumeVerificationToken(record.id);
+    await users.setPassword(record.user_id, await hashPassword(password));
     // Invalidate every existing session after a password change.
-    users.revokeAllUserTokens(record.user_id);
+    await users.revokeAllUserTokens(record.user_id);
 
-    logAuthEvent({ userId: record.user_id, eventType: 'password_reset_completed', ...ctx, success: true });
+    await logAuthEvent({ userId: record.user_id, eventType: 'password_reset_completed', ...ctx, success: true });
     res.json({ message: 'Password updated. You can now sign in.' });
   } catch (error) {
     console.error('[resetPassword]', error);
@@ -417,16 +425,16 @@ exports.resetPassword = async (req, res) => {
 exports.setupMfa = async (req, res) => {
   const ctx = reqContext(req);
   try {
-    const user = users.findById(req.user.id);
+    const user = await users.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const secret = TOTP.generateSecret();
-    users.setMfaSecret(user.id, secret);
+    await users.setMfaSecret(user.id, secret);
 
     const uri = TOTP.generateURI({ secret, label: user.email, issuer: 'InvestAI Real Estate' });
     const qrDataUrl = await qrcode.toDataURL(uri);
 
-    logAuthEvent({ userId: user.id, eventType: 'mfa_setup', ...ctx, success: true });
+    await logAuthEvent({ userId: user.id, eventType: 'mfa_setup', ...ctx, success: true });
     res.json({ secret, qrDataUrl, message: 'Scan the QR code, then confirm with a code to activate.' });
   } catch (error) {
     console.error('[setupMfa]', error);
@@ -440,16 +448,16 @@ exports.enableMfa = async (req, res) => {
     const { code } = req.body || {};
     if (!code) return res.status(400).json({ message: 'Code required' });
 
-    const secret = users.getMfaSecret(req.user.id);
+    const secret = await users.getMfaSecret(req.user.id);
     if (!secret) return res.status(400).json({ message: 'Run MFA setup first' });
 
     if (!TOTP.verify({ token: String(code).trim(), secret })) {
-      logAuthEvent({ userId: req.user.id, eventType: 'mfa_failure', ...ctx, success: false, detail: 'enable' });
+      await logAuthEvent({ userId: req.user.id, eventType: 'mfa_failure', ...ctx, success: false, detail: 'enable' });
       return res.status(400).json({ message: 'Invalid code. Check your authenticator app.' });
     }
 
-    users.enableMfa(req.user.id);
-    logAuthEvent({ userId: req.user.id, eventType: 'mfa_enabled', ...ctx, success: true });
+    await users.enableMfa(req.user.id);
+    await logAuthEvent({ userId: req.user.id, eventType: 'mfa_enabled', ...ctx, success: true });
     res.json({ message: 'Two-factor authentication enabled.' });
   } catch (error) {
     console.error('[enableMfa]', error);
@@ -461,7 +469,9 @@ exports.enableMfa = async (req, res) => {
 
 exports.getAuditLog = async (req, res) => {
   try {
-    const events = req.user.role === 'Admin' ? getAllEvents(200) : getEventsForUser(req.user.id, 50);
+    const events = req.user.role === 'Admin'
+      ? await getAllEvents(200)
+      : await getEventsForUser(req.user.id, 50);
     res.json({ events, scope: req.user.role === 'Admin' ? 'all' : 'self' });
   } catch (error) {
     console.error('[getAuditLog]', error);

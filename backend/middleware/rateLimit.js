@@ -2,6 +2,13 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const { logAuthEvent, reqContext } = require('../utils/audit');
 
+// NOTE FOR SERVERLESS DEPLOYMENTS
+// express-rate-limit's default MemoryStore is per-process. On Vercel each
+// concurrent container gets its own counter, so the effective limit is
+// (max x number of warm containers) rather than `max`. That is weaker than it
+// looks under a distributed attack. For a real limit, back this with a shared
+// store — @upstash/ratelimit or rate-limit-redis — keyed the same way.
+
 // A single IPv6 client is handed a /64 (often a /48) of addresses, so keying on the
 // raw req.ip would let one attacker get a fresh bucket per request. ipKeyGenerator
 // collapses v6 to its /56 subnet and leaves v4 untouched.
@@ -14,9 +21,10 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => `${ipKey(req)}:${(req.body?.email || 'unknown').toLowerCase()}`,
-  handler: (req, res) => {
+  handler: async (req, res) => {
     const ctx = reqContext(req);
-    logAuthEvent({
+    // Awaited so the event is committed before the container can freeze.
+    await logAuthEvent({
       userId: null,
       eventType: 'rate_limit_exceeded',
       ...ctx,

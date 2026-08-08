@@ -57,11 +57,14 @@ function sanitizePrompt(input) {
  * Middleware-style function for controllers.
  * Logs flagged attempts and returns sanitized input for safe interpolation.
  * Even flagged input is still processed — we fence it, not reject it.
+ *
+ * Async since the audit log moved to Postgres. The write is awaited so the
+ * record survives a serverless container freezing right after the response.
  */
-function sanitizeAndLog({ input, userId, ip, userAgent }) {
+async function sanitizeAndLog({ input, userId, ip, userAgent }) {
   const result = sanitizePrompt(input);
   if (result.flagged) {
-    logAuthEvent({
+    await logAuthEvent({
       userId,
       eventType: 'prompt_injection_attempt',
       ip,

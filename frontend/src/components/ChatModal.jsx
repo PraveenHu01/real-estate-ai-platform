@@ -40,10 +40,11 @@ export default function ChatModal({ property, onClose }) {
     setSending(true);
 
     try {
+      // senderName is intentionally not sent — the server stamps identity from
+      // the session cookie and ignores any client-supplied name.
       await api.post('/chat/send', {
         propertyId: property?.id || property?._id || 'prop-101',
         message: sentText,
-        senderName: myMsg.senderName,
         sellerId: property?.seller?.userId || 'seller-1',
       });
 

@@ -1,7 +1,7 @@
 // Seed the three demo accounts with real Argon2id-hashed passwords.
-// Run once after the database is initialized: node utils/seedUsers.js
+// Run once after the database is migrated: node utils/seedUsers.js
 
-const { connect } = require('../db');
+const { connect, migrate, close } = require('../db');
 const { createUser, findByEmail, countUsers } = require('../db/users');
 const { hashPassword } = require('./password');
 
@@ -13,9 +13,11 @@ const DEMO_USERS = [
 
 async function seedUsers() {
   try {
-    connect();
+    await connect();
+    // Tables may not exist yet on a freshly provisioned database.
+    await migrate();
 
-    const existing = countUsers();
+    const existing = await countUsers();
     if (existing > 0) {
       console.log(`[seed] Database already has ${existing} users. Skipping seed.`);
       return;
@@ -24,7 +26,7 @@ async function seedUsers() {
     console.log('[seed] Hashing passwords and creating demo users...');
     for (const u of DEMO_USERS) {
       const passwordHash = await hashPassword(u.password);
-      const user = createUser({
+      const user = await createUser({
         name: u.name,
         email: u.email,
         passwordHash,
@@ -42,7 +44,9 @@ async function seedUsers() {
 }
 
 if (require.main === module) {
-  seedUsers().then(() => process.exit(0));
+  seedUsers()
+    .then(() => close())
+    .then(() => process.exit(0));
 }
 
 module.exports = { seedUsers, DEMO_USERS };

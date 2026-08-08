@@ -8,6 +8,48 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "model.pkl")
 DATASET_PATH = os.path.join(BASE_DIR, "dataset.csv")
 
+# Single source of truth for per-city market assumptions, used by the formula
+# fallback, the investment projection, and the safety lookup. Values are the
+# midpoints of the bands in train.py — keep the two files in step when either
+# changes, or the fallback will disagree with the trained model.
+#
+#   rate_per_sqft : typical asking rate in Rs/sqft
+#   growth        : annual capital appreciation
+#   crime         : 1.0 safest .. 6.0 least safe
+CITY_PROFILES = {
+    # Tier 1 — metro
+    "Mumbai":        {"rate_per_sqft": 22000, "growth": 0.084, "crime": 3.0},
+    "Delhi":         {"rate_per_sqft": 14000, "growth": 0.077, "crime": 3.8},
+    "Bengaluru":     {"rate_per_sqft": 11000, "growth": 0.098, "crime": 2.3},
+    "Hyderabad":     {"rate_per_sqft":  8000, "growth": 0.087, "crime": 2.6},
+    "Pune":          {"rate_per_sqft":  8800, "growth": 0.080, "crime": 2.4},
+    "Chennai":       {"rate_per_sqft":  9500, "growth": 0.074, "crime": 2.7},
+    "Kolkata":       {"rate_per_sqft":  6500, "growth": 0.067, "crime": 3.0},
+    # NCR satellites
+    "Gurgaon":       {"rate_per_sqft": 12200, "growth": 0.081, "crime": 3.1},
+    "Noida":         {"rate_per_sqft":  7700, "growth": 0.079, "crime": 2.9},
+    # Tier 2
+    "Chandigarh":    {"rate_per_sqft":  8100, "growth": 0.078, "crime": 2.2},
+    "Kochi":         {"rate_per_sqft":  7300, "growth": 0.076, "crime": 2.4},
+    "Coimbatore":    {"rate_per_sqft":  6300, "growth": 0.073, "crime": 2.3},
+    "Ahmedabad":     {"rate_per_sqft":  6000, "growth": 0.077, "crime": 2.7},
+    "Visakhapatnam": {"rate_per_sqft":  5900, "growth": 0.074, "crime": 2.5},
+    "Surat":         {"rate_per_sqft":  5600, "growth": 0.075, "crime": 2.6},
+    "Jaipur":        {"rate_per_sqft":  5500, "growth": 0.073, "crime": 2.8},
+    "Indore":        {"rate_per_sqft":  5200, "growth": 0.079, "crime": 2.9},
+    "Lucknow":       {"rate_per_sqft":  5100, "growth": 0.070, "crime": 2.9},
+    "Nagpur":        {"rate_per_sqft":  5100, "growth": 0.070, "crime": 2.6},
+    "Bhopal":        {"rate_per_sqft":  4200, "growth": 0.073, "crime": 2.6},
+}
+
+# Applied to any city absent from the table, so an unlisted city still returns
+# a plausible number instead of failing.
+DEFAULT_PROFILE = {"rate_per_sqft": 5000, "growth": 0.075, "crime": 2.5}
+
+
+def city_profile(city: str) -> dict:
+    return CITY_PROFILES.get(city, DEFAULT_PROFILE)
+
 
 class PropertyAIEngine:
     def __init__(self):
@@ -76,28 +118,15 @@ class PropertyAIEngine:
             except Exception as e:
                 print(f"ML prediction error, falling back to formula: {e}")
 
-        # Formula Fallback — city base rates per sq.ft in ₹
-        base_rate = {
-            "Bhopal": 4200,
-            "Indore": 5200,
-            "Bengaluru": 11000,
-            "Mumbai": 22000,
-            "Delhi": 14000
-        }.get(city, 5000)
+        # Formula Fallback — use city_profile for consistent rates
+        profile = city_profile(city)
         age_decay = max(0.65, 1.0 - (age_years * 0.015))
-        price_lakhs = (area_sqft * base_rate * age_decay / 100000.0) + (parking * 3.5) + (floor * 0.3)
+        price_lakhs = (area_sqft * profile["rate_per_sqft"] * age_decay / 100000.0) + (parking * 3.5) + (floor * 0.3)
         return round(price_lakhs, 2)
 
     def calculate_investment_analysis(self, current_price_lakhs, city, location, age_years):
         """Compute 1Y, 3Y, 5Y projected prices, ROI%, risk, and AI rating."""
-        city_growth_rates = {
-            "Bengaluru": 0.095,
-            "Mumbai": 0.085,
-            "Delhi": 0.080,
-            "Indore": 0.078,
-            "Bhopal": 0.072,
-        }
-        base_rate = city_growth_rates.get(city, 0.075)
+        base_rate = city_profile(city)["growth"]
 
         if age_years < 5:
             base_rate += 0.015
@@ -127,14 +156,27 @@ class PropertyAIEngine:
         }
 
     def evaluate_crime_and_safety(self, city: str, location: str = "") -> dict:
-        city_crime = {
-            "Bhopal":     {"crime_score": 2.4, "zone": "Safe",          "ai_safety_rating": "9.1/10"},
-            "Indore":     {"crime_score": 2.1, "zone": "Very Safe",     "ai_safety_rating": "9.4/10"},
-            "Bengaluru":  {"crime_score": 2.8, "zone": "Safe",          "ai_safety_rating": "8.8/10"},
-            "Mumbai":     {"crime_score": 3.1, "zone": "Moderate",      "ai_safety_rating": "8.5/10"},
-            "Delhi":      {"crime_score": 4.5, "zone": "Moderate Risk", "ai_safety_rating": "7.4/10"},
+        """Derive a safety band from the city's crime score in CITY_PROFILES."""
+        score = city_profile(city)["crime"]
+
+        if score <= 2.2:
+            zone = "Very Safe"
+        elif score <= 2.8:
+            zone = "Safe"
+        elif score <= 3.5:
+            zone = "Moderate"
+        else:
+            zone = "Moderate Risk"
+
+        # Map 1.0..6.0 crime onto a 10..5 safety rating.
+        rating = round(max(5.0, min(9.8, 10.0 - (score * 0.85))), 1)
+
+        return {
+            "city": city,
+            "crime_score": score,
+            "zone": zone,
+            "ai_safety_rating": f"{rating}/10",
         }
-        return city_crime.get(city, {"crime_score": 2.5, "zone": "Safe", "ai_safety_rating": "8.9/10"})
 
 
 # Singleton engine — imported by app.py

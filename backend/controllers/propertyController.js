@@ -1,6 +1,13 @@
+const mongoose = require('mongoose');
 const Property = require('../models/Property');
 const Wishlist = require('../models/Wishlist');
 const { initialProperties } = require('../utils/seedData');
+
+// With no live MongoDB connection, Mongoose buffers queries rather than
+// failing fast — `await Property.find()` would block for bufferTimeoutMS
+// (10s) before rejecting. Check readyState first so the seed-data fallback
+// is immediate instead of costing every request ten seconds.
+const mongoReady = () => mongoose.connection.readyState === 1;
 
 let inMemoryProperties = [...initialProperties];
 let inMemoryWishlist = [];
@@ -8,31 +15,33 @@ let inMemoryWishlist = [];
 exports.getAllProperties = async (req, res) => {
   try {
     const { city, minPrice, maxPrice, bedrooms, furnished, search, status } = req.query;
-    
-    let properties = [];
-    try {
-      let query = {};
-      if (status) query.status = status;
-      else query.status = 'Approved';
 
-      if (city && city !== 'All') query.city = new RegExp(city, 'i');
-      if (bedrooms && bedrooms !== 'All') query.bedrooms = parseInt(bedrooms);
-      if (furnished && furnished !== 'All') query.furnished = furnished;
-      if (minPrice || maxPrice) {
-        query.price_lakhs = {};
-        if (minPrice) query.price_lakhs.$gte = parseFloat(minPrice);
-        if (maxPrice) query.price_lakhs.$lte = parseFloat(maxPrice);
+    let properties = [];
+    if (mongoReady()) {
+      try {
+        let query = {};
+        if (status) query.status = status;
+        else query.status = 'Approved';
+
+        if (city && city !== 'All') query.city = new RegExp(city, 'i');
+        if (bedrooms && bedrooms !== 'All') query.bedrooms = parseInt(bedrooms);
+        if (furnished && furnished !== 'All') query.furnished = furnished;
+        if (minPrice || maxPrice) {
+          query.price_lakhs = {};
+          if (minPrice) query.price_lakhs.$gte = parseFloat(minPrice);
+          if (maxPrice) query.price_lakhs.$lte = parseFloat(maxPrice);
+        }
+        if (search) {
+          query.$or = [
+            { title: new RegExp(search, 'i') },
+            { location: new RegExp(search, 'i') },
+            { description: new RegExp(search, 'i') }
+          ];
+        }
+        properties = await Property.find(query);
+      } catch (err) {
+        properties = [];
       }
-      if (search) {
-        query.$or = [
-          { title: new RegExp(search, 'i') },
-          { location: new RegExp(search, 'i') },
-          { description: new RegExp(search, 'i') }
-        ];
-      }
-      properties = await Property.find(query);
-    } catch (err) {
-      properties = [];
     }
 
     if (properties.length === 0) {
@@ -59,14 +68,26 @@ exports.getAllProperties = async (req, res) => {
   }
 };
 
+exports.getCities = async (req, res) => {
+  try {
+    const { listCities } = require('../services/propertyQuery');
+    const { cities } = await listCities();
+    res.json({ count: cities.length, cities });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
     let property = null;
-    try {
-      property = await Property.findById(id);
-    } catch (err) {
-      property = null;
+    if (mongoReady()) {
+      try {
+        property = await Property.findById(id);
+      } catch (err) {
+        property = null;
+      }
     }
     if (!property) {
       property = inMemoryProperties.find(p => p.id === id || p._id === id);
@@ -103,9 +124,14 @@ exports.createProperty = async (req, res) => {
       createdAt: new Date()
     };
 
-    try {
-      await Property.create(newProp);
-    } catch (err) {
+    if (mongoReady()) {
+      try {
+        await Property.create(newProp);
+      } catch (err) {
+        inMemoryProperties.unshift(newProp);
+      }
+    } else {
+      // No database — the listing survives only until this container recycles.
       inMemoryProperties.unshift(newProp);
     }
 

@@ -1,4 +1,11 @@
 const initialProperties = [
+  // ==========================================================================
+  // CURATED LISTINGS (prop-101 .. prop-141)
+  //
+  // Hand-written, with real addresses and coordinates. These are the listings
+  // shown on the homepage and used in demos. Generated all-India coverage is
+  // appended below from utils/generateCatalogue.js.
+  // ==========================================================================
   {
     id: "prop-101",
     _id: "650000000000000000000101",
@@ -754,4 +761,29 @@ const initialProperties = [
   }
 ];
 
-module.exports = { initialProperties };
+// ==========================================================================
+// GENERATED ALL-INDIA COVERAGE
+//
+// The curated set above spans 5 cities. This appends seeded, deterministic
+// listings across all 20 cities the ML service models, so AI search can
+// answer for Pune, Hyderabad, Kolkata and the rest instead of coming back
+// empty. Same seed on every boot — ids stay stable, so wishlists and shared
+// links keep resolving across restarts.
+//
+// Tune volume with CATALOGUE_PER_CITY (default 18 -> 360 generated listings).
+// ==========================================================================
+const { generateCatalogue } = require('./generateCatalogue');
+
+const PER_CITY = Number(process.env.CATALOGUE_PER_CITY) || 18;
+
+const generatedProperties = generateCatalogue({ perCity: PER_CITY });
+
+const allProperties = [...initialProperties, ...generatedProperties];
+
+module.exports = {
+  // Everything the app serves — curated first, then generated.
+  initialProperties: allProperties,
+  // The hand-written subset, for demos and the featured homepage rail.
+  curatedProperties: initialProperties,
+  generatedProperties,
+};
