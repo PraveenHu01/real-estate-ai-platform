@@ -1,0 +1,15 @@
+{
+  "name": "real-estate-ai-platform",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Monorepo root. Exists so Vercel has a single, predictable place to run install and build from — without it, framework detection finds nothing at the deploy root and the frontend never gets its dependencies.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "install:all": "cd backend && npm install --omit=dev && cd ../frontend && npm install --include=dev",
+    "build": "cd frontend && npm run build",
+    "db:migrate": "cd backend && npm run db:migrate",
+    "keys": "cd backend && npm run keys"
+  }
+}

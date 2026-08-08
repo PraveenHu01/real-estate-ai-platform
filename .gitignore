@@ -49,3 +49,6 @@ desktop.ini
 # === Misc ===
 .cache/
 coverage/
+
+.vercel
+.env*
