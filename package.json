@@ -4,12 +4,29 @@
   "version": "1.0.0",
   "description": "Monorepo root. Exists so Vercel has a single, predictable place to run install and build from — without it, framework detection finds nothing at the deploy root and the frontend never gets its dependencies.",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
-    "install:all": "cd backend && npm install --omit=dev && cd ../frontend && npm install --include=dev",
+    "install:all": "npm install --omit=dev && cd backend && npm install --omit=dev && cd ../frontend && npm install --include=dev",
     "build": "cd frontend && npm run build",
     "db:migrate": "cd backend && npm run db:migrate",
     "keys": "cd backend && npm run keys"
+  },
+  "dependencies": {
+    "@node-rs/argon2": "^2.0.2",
+    "axios": "^1.6.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.0",
+    "otplib": "^13.4.1",
+    "pg": "^8.13.1",
+    "qrcode": "^1.5.4",
+    "zod": "^4.4.3"
   }
 }

@@ -2,38 +2,29 @@ const axios = require('axios');
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 
+// Both fallbacks below share one source of per-city figures, so /predict-price
+// and /investment-analysis cannot report different growth for the same city.
+const { estimatePrice, investmentForecast } = require('../utils/cityProfiles');
+
 exports.predictPrice = async (req, res) => {
   try {
     try {
       const response = await axios.post(`${ML_SERVICE_URL}/predict-price`, req.body);
       return res.json(response.data);
     } catch (mlErr) {
-      // Fallback Engine
-      const { city, location, area_sqft, bedrooms, age_years, parking = 1, floor = 3 } = req.body;
-      const baseRates = { Bhopal: 4200, Indore: 5200, Bengaluru: 11000, Mumbai: 22000, Delhi: 14000 };
-      const rate = baseRates[city] || 5000;
-      const ageFactor = Math.max(0.65, 1.0 - (age_years * 0.015));
-      const rawPrice = (area_sqft * rate * ageFactor / 100000.0) + (parking * 3.5) + (floor * 0.3);
-      const predicted_price = Math.round(rawPrice * 100) / 100;
-      
-      const rate5y = city === 'Bengaluru' ? 0.095 : 0.075;
-      const pred5y = Math.round(predicted_price * Math.pow(1 + rate5y, 5) * 100) / 100;
-      const roi5y = Math.round(((pred5y - predicted_price) / predicted_price) * 1000) / 10;
+      // Fallback Engine — same per-city figures the ML service uses.
+      const { city, area_sqft, age_years, parking = 1, floor = 3 } = req.body;
+      const predicted_price = estimatePrice({ city, area_sqft, age_years, parking, floor });
 
       return res.json({
         predicted_price_lakhs: predicted_price,
         price_per_sqft: Math.round((predicted_price * 100000) / area_sqft),
         currency: "INR",
-        investment_forecast: {
+        investment_forecast: investmentForecast({
           current_price_lakhs: predicted_price,
-          predicted_price_1y: Math.round(predicted_price * (1 + rate5y) * 100) / 100,
-          predicted_price_3y: Math.round(predicted_price * Math.pow(1 + rate5y, 3) * 100) / 100,
-          predicted_price_5y: pred5y,
-          expected_roi_5y_pct: roi5y,
-          risk_level: age_years > 15 ? "Moderate" : "Low",
-          annual_cagr_pct: Math.round(rate5y * 1000) / 10,
-          ai_rating: Math.round((7.0 + (roi5y / 15)) * 10) / 10
-        }
+          city,
+          age_years,
+        }),
       });
     }
   } catch (error) {
@@ -48,22 +39,7 @@ exports.investmentAnalysis = async (req, res) => {
       return res.json(response.data);
     } catch (err) {
       const { current_price_lakhs, city, age_years } = req.body;
-      const growthRate = city === 'Bengaluru' ? 0.095 : (city === 'Mumbai' ? 0.085 : 0.075);
-      const p1y = Math.round(current_price_lakhs * Math.pow(1 + growthRate, 1) * 100) / 100;
-      const p3y = Math.round(current_price_lakhs * Math.pow(1 + growthRate, 3) * 100) / 100;
-      const p5y = Math.round(current_price_lakhs * Math.pow(1 + growthRate, 5) * 100) / 100;
-      const roi5y = Math.round(((p5y - current_price_lakhs) / current_price_lakhs) * 1000) / 10;
-
-      return res.json({
-        current_price_lakhs,
-        predicted_price_1y: p1y,
-        predicted_price_3y: p3y,
-        predicted_price_5y: p5y,
-        expected_roi_5y_pct: roi5y,
-        risk_level: age_years > 15 ? "Moderate" : "Low",
-        annual_cagr_pct: Math.round(growthRate * 1000) / 10,
-        ai_rating: Math.round((7.2 + (roi5y / 15)) * 10) / 10
-      });
+      return res.json(investmentForecast({ current_price_lakhs, city, age_years }));
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -116,9 +92,13 @@ exports.recommendProperties = async (req, res) => {
         near(p.metro_dist_m, 5000) * 0.3;
 
       // Locality match is a bonus, not a filter — a great home one suburb over
-      // should still surface.
-      const localityScore = preferred_locality &&
-        p.location.toLowerCase().includes(String(preferred_locality).toLowerCase()) ? 1 : 0;
+      // should still surface. With no locality asked for there is nothing to
+      // match against, so the component is neutral rather than 0: scoring it 0
+      // would put the 10% weight out of reach and cap every score at 90.
+      const localityScore = !preferred_locality
+        ? 1
+        : String(p.location || '').toLowerCase()
+            .includes(String(preferred_locality).toLowerCase()) ? 1 : 0;
 
       const ai_match_score = Math.round(
         (budgetFit * 0.30 +

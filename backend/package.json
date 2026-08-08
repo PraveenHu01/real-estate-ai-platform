@@ -4,7 +4,7 @@
   "description": "Node.js Express backend with JWT Auth, Postgres, and AI ML proxy integration",
   "main": "server.js",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node server.js",
