@@ -1,0 +1,74 @@
+# Render blueprint for the Express API. Deploy with: New > Blueprint, pointed at this repo.
+#
+# `plan: starter` is deliberate, not an upsell. Render's free tier has no
+# persistent disk, so backend/db/realestate_auth.db — every user, password hash
+# and MFA secret — is wiped on each deploy and each spin-down after 15 minutes
+# of inactivity. If you want a free deployment, migrate auth off SQLite to a
+# hosted Postgres (Neon/Supabase) instead of dropping to `plan: free`.
+
+services:
+  - type: web
+    name: real-estate-api
+    runtime: node
+    plan: starter
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: node server.js
+    healthCheckPath: /api/health
+
+    disk:
+      name: auth-data
+      mountPath: /var/data
+      sizeGB: 1
+
+    envVars:
+      # node:sqlite is only available on recent Node. Pin it — do not inherit
+      # whatever default the platform happens to ship.
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+
+      # Points SQLite at the mounted disk above rather than the ephemeral
+      # container filesystem.
+      - key: SQLITE_PATH
+        value: /var/data/realestate_auth.db
+
+      # Your deployed frontend. Comma-separated if you have more than one.
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: APP_URL
+        sync: false
+
+      # Leave unset unless you want deploy previews to reach this API. Must be
+      # an anchored regex pinned to your project slug — see server.js.
+      - key: PREVIEW_ORIGIN_REGEX
+        sync: false
+
+      # 'lax' when the frontend proxies /api through its own domain (the
+      # netlify.toml / vercel.json rewrites do this). 'none' only if the browser
+      # calls this host directly from a different domain.
+      - key: COOKIE_SAMESITE
+        value: lax
+
+      # Set these in the Render dashboard. Generate with:
+      #   node utils/genKeys.js --print
+      # Rotating them logs every user out; rotating ENCRYPTION_KEY or
+      # EMAIL_HMAC_KEY permanently orphans existing rows. Set once, then leave.
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: EMAIL_HMAC_KEY
+        sync: false
+
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: MONGO_URI
+        sync: false
+      - key: ML_SERVICE_URL
+        sync: false

@@ -1,11 +1,7 @@
-import React, { useContext } from 'react';
-import { Navigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
+// Kept for backwards compatibility — ProtectedRoute supersedes this.
+import React from 'react';
+import ProtectedRoute from './ProtectedRoute';
 
 export default function ProtectedAdminRoute({ children }) {
-  const { user } = useContext(AuthContext);
-  if (!user || user.role !== 'Admin') {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
+  return <ProtectedRoute requiredRole="Admin">{children}</ProtectedRoute>;
 }

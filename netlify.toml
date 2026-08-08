@@ -1,0 +1,28 @@
+# Netlify builds only the SPA. The Express backend runs elsewhere (see render.yaml)
+# because it needs a persistent filesystem for SQLite and long-lived Socket.IO
+# connections — neither of which serverless functions provide.
+
+[build]
+  base = "frontend"
+  command = "npm ci && npm run build"
+  publish = "dist"          # relative to `base`
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Proxy the API through the Netlify domain so the browser sees same-origin
+# requests. This is what lets the auth cookies stay SameSite=Lax instead of
+# needing SameSite=None, which Safari and Brave increasingly block.
+# Replace the host below with your deployed backend.
+[[redirects]]
+  from = "/api/*"
+  to = "https://YOUR-BACKEND.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# SPA fallback — must come last. Without it, refreshing /login or /verify-email
+# returns a 404 because no such file exists in dist/.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -5,6 +5,13 @@
 *.pem
 *.key
 
+# === Databases (contain real user data + password hashes) ===
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
 # === Dependencies ===
 node_modules/
 __pycache__/
