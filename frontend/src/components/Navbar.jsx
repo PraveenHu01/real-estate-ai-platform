@@ -2,8 +2,8 @@ import React, { useContext, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { WishlistContext } from '../context/WishlistContext';
-import { 
-  Building2, Sparkles, TrendingUp, Calculator, Heart, MessageSquare, 
+import {
+  Building2, Sparkles, TrendingUp, Calculator, Bookmark, MessageSquare,
   ShieldCheck, BarChart3, PlusCircle, LogIn, LogOut, User, Menu, X
 } from 'lucide-react';
 
@@ -64,10 +64,10 @@ export default function Navbar() {
 
           {/* Action Buttons & Auth */}
           <div className="hidden lg:flex items-center space-x-3">
-            <Link to="/wishlist" className="relative p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-300 hover:text-pink-400 transition">
-              <Heart className="w-5 h-5" />
+            <Link to="/wishlist" title="Saved properties" aria-label="Saved properties" className="relative p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-300 hover:text-blue-400 transition">
+              <Bookmark className={`w-5 h-5 ${wishlistIds.length > 0 ? 'fill-current text-blue-400' : ''}`} />
               {wishlistIds.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-pink-500 text-white rounded-full text-xs font-bold flex items-center justify-center shadow-md">
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white rounded-full text-xs font-bold flex items-center justify-center shadow-md">
                   {wishlistIds.length}
                 </span>
               )}
@@ -137,7 +137,7 @@ export default function Navbar() {
           <Link to="/compare" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-medium text-slate-200">Property Comparison</Link>
           <Link to="/emi-calculator" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-medium text-slate-200">EMI Calculator</Link>
           <Link to="/analytics" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-medium text-slate-200">Analytics Dashboard</Link>
-          <Link to="/wishlist" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-medium text-pink-400">Wishlist ({wishlistIds.length})</Link>
+          <Link to="/wishlist" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-medium text-blue-400">Wishlist ({wishlistIds.length})</Link>
           <Link to="/chat" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-medium text-slate-200">Chat Messaging</Link>
           {user?.role === 'Admin' && (
             <Link to="/admin" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-medium text-amber-400">Admin Panel</Link>

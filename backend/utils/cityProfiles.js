@@ -11,39 +11,72 @@
 //   ratePerSqft : typical asking rate in Rs/sqft
 //   growth      : annual capital appreciation
 //   crime       : 1.0 safest .. 6.0 least safe
+//   localities  : representative areas, mirrored from train.py CITIES_DATA.
+//                 Used to name modelled suggestions in markets the catalogue
+//                 has no real listings for.
 
 const CITY_PROFILES = {
   // Tier 1 — metro
-  Mumbai:        { ratePerSqft: 22000, growth: 0.084, crime: 3.0 },
-  Delhi:         { ratePerSqft: 14000, growth: 0.077, crime: 3.8 },
-  Bengaluru:     { ratePerSqft: 11000, growth: 0.098, crime: 2.3 },
-  Hyderabad:     { ratePerSqft:  8000, growth: 0.087, crime: 2.6 },
-  Pune:          { ratePerSqft:  8800, growth: 0.080, crime: 2.4 },
-  Chennai:       { ratePerSqft:  9500, growth: 0.074, crime: 2.7 },
-  Kolkata:       { ratePerSqft:  6500, growth: 0.067, crime: 3.0 },
+  Mumbai:        { ratePerSqft: 22000, growth: 0.084, crime: 3.0,
+    localities: ['Bandra West', 'Andheri East', 'Powai', 'Thane', 'Navi Mumbai', 'Worli', 'Juhu', 'Goregaon', 'Malad', 'Borivali'] },
+  Delhi:         { ratePerSqft: 14000, growth: 0.077, crime: 3.8,
+    localities: ['Dwarka', 'Vasant Kunj', 'Rohini', 'South Extension', 'Janakpuri', 'Saket', 'Greater Kailash', 'Mayur Vihar', 'Lajpat Nagar', 'Nehru Place'] },
+  Bengaluru:     { ratePerSqft: 11000, growth: 0.098, crime: 2.3,
+    localities: ['Indiranagar', 'Koramangala', 'Whitefield', 'HSR Layout', 'Electronic City', 'Yelahanka', 'Marathahalli', 'BTM Layout', 'JP Nagar', 'Bellandur'] },
+  Hyderabad:     { ratePerSqft:  8000, growth: 0.087, crime: 2.6,
+    localities: ['Gachibowli', 'Hitech City', 'Madhapur', 'Banjara Hills', 'Jubilee Hills', 'Kondapur', 'Kukatpally', 'Miyapur', 'Shamshabad', 'Secunderabad'] },
+  Pune:          { ratePerSqft:  8800, growth: 0.080, crime: 2.4,
+    localities: ['Hinjewadi', 'Wakad', 'Baner', 'Kharadi', 'Viman Nagar', 'Magarpatta', 'Hadapsar', 'Aundh', 'Koregaon Park', 'Pimpri Chinchwad'] },
+  Chennai:       { ratePerSqft:  9500, growth: 0.074, crime: 2.7,
+    localities: ['OMR', 'Velachery', 'Adyar', 'Anna Nagar', 'T Nagar', 'Porur', 'Thoraipakkam', 'Tambaram', 'Nungambakkam', 'Sholinganallur'] },
+  Kolkata:       { ratePerSqft:  6500, growth: 0.067, crime: 3.0,
+    localities: ['Salt Lake', 'New Town', 'Rajarhat', 'Ballygunge', 'Park Street', 'Alipore', 'Behala', 'Jadavpur', 'Howrah', 'Dum Dum'] },
   // NCR satellites
-  Gurgaon:       { ratePerSqft: 12200, growth: 0.081, crime: 3.1 },
-  Noida:         { ratePerSqft:  7700, growth: 0.079, crime: 2.9 },
+  Gurgaon:       { ratePerSqft: 12200, growth: 0.081, crime: 3.1,
+    localities: ['DLF Phase 1', 'DLF Phase 2', 'DLF Phase 3', 'Sohna Road', 'Golf Course Road', 'MG Road', 'Sector 56', 'Sector 43', 'Cyber City', 'New Gurgaon'] },
+  Noida:         { ratePerSqft:  7700, growth: 0.079, crime: 2.9,
+    localities: ['Sector 62', 'Sector 76', 'Sector 137', 'Greater Noida', 'Sector 18', 'Sector 52', 'Noida Extension', 'Sector 78', 'Sector 128', 'Sector 150'] },
   // Tier 2
-  Chandigarh:    { ratePerSqft:  8100, growth: 0.078, crime: 2.2 },
-  Kochi:         { ratePerSqft:  7300, growth: 0.076, crime: 2.4 },
-  Coimbatore:    { ratePerSqft:  6300, growth: 0.073, crime: 2.3 },
-  Ahmedabad:     { ratePerSqft:  6000, growth: 0.077, crime: 2.7 },
-  Visakhapatnam: { ratePerSqft:  5900, growth: 0.074, crime: 2.5 },
-  Surat:         { ratePerSqft:  5600, growth: 0.075, crime: 2.6 },
-  Jaipur:        { ratePerSqft:  5500, growth: 0.073, crime: 2.8 },
-  Indore:        { ratePerSqft:  5200, growth: 0.079, crime: 2.9 },
-  Lucknow:       { ratePerSqft:  5100, growth: 0.070, crime: 2.9 },
-  Nagpur:        { ratePerSqft:  5100, growth: 0.070, crime: 2.6 },
-  Bhopal:        { ratePerSqft:  4200, growth: 0.073, crime: 2.6 },
+  Chandigarh:    { ratePerSqft:  8100, growth: 0.078, crime: 2.2,
+    localities: ['Sector 17', 'Sector 22', 'Sector 35', 'Sector 43', 'Sector 8', 'Mohali', 'Panchkula', 'Zirakpur', 'Sector 34', 'Sector 11'] },
+  Kochi:         { ratePerSqft:  7300, growth: 0.076, crime: 2.4,
+    localities: ['Kakkanad', 'Edappally', 'Panampilly Nagar', 'Vyttila', 'Marine Drive', 'Kaloor', 'Palarivattom', 'Ernakulam', 'Fort Kochi', 'Aluva'] },
+  Coimbatore:    { ratePerSqft:  6300, growth: 0.073, crime: 2.3,
+    localities: ['RS Puram', 'Saibaba Colony', 'Peelamedu', 'Gandhipuram', 'Singanallur', 'Saravanampatti', 'Vadavalli', 'Thudiyalur', 'Race Course', 'Kalapatti'] },
+  Ahmedabad:     { ratePerSqft:  6000, growth: 0.077, crime: 2.7,
+    localities: ['SG Highway', 'Vastrapur', 'Bodakdev', 'Satellite', 'Maninagar', 'Thaltej', 'Chandkheda', 'Gota', 'Bopal', 'Prahlad Nagar'] },
+  Visakhapatnam: { ratePerSqft:  5900, growth: 0.074, crime: 2.5,
+    localities: ['Madhurawada', 'Gajuwaka', 'MVP Colony', 'Dwaraka Nagar', 'Siripuram', 'Rushikonda', 'Yendada', 'Asilmetta', 'Lawsons Bay', 'NAD'] },
+  Surat:         { ratePerSqft:  5600, growth: 0.075, crime: 2.6,
+    localities: ['Vesu', 'Adajan', 'Pal', 'Althan', 'Ghod Dod Road', 'Citylight', 'Piplod', 'Udhna', 'Magdalla', 'Parle Point'] },
+  Jaipur:        { ratePerSqft:  5500, growth: 0.073, crime: 2.8,
+    localities: ['Mansarovar', 'Vaishali Nagar', 'Malviya Nagar', 'Jagatpura', 'Raja Park', 'Tonk Road', 'Ajmer Road', 'Sitapura', 'Mahesh Nagar', 'Nirman Nagar'] },
+  Indore:        { ratePerSqft:  5200, growth: 0.079, crime: 2.9,
+    localities: ['Vijay Nagar', 'Palasia', 'Bypass Road', 'Rau', 'AB Road', 'Mahalaxmi Nagar', 'Super Corridor', 'Scheme 54', 'Rajendra Nagar', 'MR 10'] },
+  Lucknow:       { ratePerSqft:  5100, growth: 0.070, crime: 2.9,
+    localities: ['Gomti Nagar', 'Hazratganj', 'Indira Nagar', 'Alambagh', 'Aliganj', 'Mahanagar', 'Rajajipuram', 'Chinhat', 'Jankipuram', 'Aashiana'] },
+  Nagpur:        { ratePerSqft:  5100, growth: 0.070, crime: 2.6,
+    localities: ['Dharampeth', 'Sadar', 'Civil Lines', 'Ramdaspeth', 'Sitabuldi', 'Wardha Road', 'Hingna', 'Kamptee Road', 'Manish Nagar', 'Laxmi Nagar'] },
+  Bhopal:        { ratePerSqft:  4200, growth: 0.073, crime: 2.6,
+    localities: ['MP Nagar', 'Arera Colony', 'Kolar Road', 'Hoshangabad Road', 'Bawadiya Kalan', 'Ayodhya Bypass', 'Shahpura', 'New Market', 'Bairagarh', 'TT Nagar'] },
 };
 
 // Used for any city not in the table, so an unlisted market still returns a
 // plausible number rather than failing.
-const DEFAULT_PROFILE = { ratePerSqft: 5000, growth: 0.075, crime: 2.5 };
+const DEFAULT_PROFILE = { ratePerSqft: 5000, growth: 0.075, crime: 2.5, localities: ['City Centre'] };
 
 function cityProfile(city) {
   return CITY_PROFILES[city] || DEFAULT_PROFILE;
+}
+
+/** Every market this platform can price, whether or not it has live listings. */
+function listProfileCities() {
+  return Object.keys(CITY_PROFILES).sort();
+}
+
+/** Representative areas for a city, for naming modelled suggestions. */
+function cityLocalities(city) {
+  return cityProfile(city).localities || DEFAULT_PROFILE.localities;
 }
 
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -78,4 +111,12 @@ function investmentForecast({ current_price_lakhs, city, age_years = 2 }) {
   };
 }
 
-module.exports = { CITY_PROFILES, DEFAULT_PROFILE, cityProfile, estimatePrice, investmentForecast };
+module.exports = {
+  CITY_PROFILES,
+  DEFAULT_PROFILE,
+  cityProfile,
+  cityLocalities,
+  listProfileCities,
+  estimatePrice,
+  investmentForecast,
+};

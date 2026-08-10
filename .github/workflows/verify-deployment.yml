@@ -1,0 +1,55 @@
+# Catches, in CI, the failures that only appear on Vercel's Linux builders:
+# case-sensitive imports, files that were never committed, and build errors
+# that a warm local node_modules hides.
+name: verify-deployment
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest   # Linux on purpose: reproduces Vercel's case sensitivity
+    steps:
+      - uses: actions/checkout@v4
+
+      # Must match .vercel/project.json nodeVersion and package.json engines.
+      # A mismatch is how native deps (@node-rs/argon2) pass here and fail there.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install (same command Vercel runs)
+        run: npm run install:all
+
+      - name: Build (same command Vercel runs)
+        id: build
+        run: npm run build
+
+      # A committed import of an uncommitted file builds fine locally and dies
+      # on Vercel with MODULE_NOT_FOUND. A fresh clone is the only honest check.
+      - name: Verify the serverless function can be required
+        run: node -e "require('./api/index.js'); console.log('api/index.js loads OK')"
+
+      - name: Verify icon imports resolve
+        run: cd frontend && node check-icons.cjs
+
+      - name: Audit environment variables
+        run: node check-env.js
+
+      - name: Comment result on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const ok = '${{ steps.build.outcome }}' === 'success';
+            const body = ok
+              ? `✅ **Build passed** on Node 22 (Linux) — matches Vercel.\n\nCommit \`${context.sha.slice(0,7)}\` should deploy cleanly.`
+              : `❌ **Build failed** — Vercel will fail too, and your production URL will keep serving the last good deploy.\n\nCommit \`${context.sha.slice(0,7)}\`. See the job log above.`;
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });

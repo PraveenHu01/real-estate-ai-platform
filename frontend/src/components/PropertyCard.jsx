@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { WishlistContext } from '../context/WishlistContext';
-import { Heart, MapPin, Bed, Bath, Maximize2, TrendingUp, Star, ShieldCheck } from 'lucide-react';
+import { Bookmark, MapPin, Bed, Bath, Maximize2, TrendingUp, Star, ShieldCheck } from 'lucide-react';
 
 export default function PropertyCard({ property }) {
   const { toggleWishlist, isSaved } = useContext(WishlistContext);
@@ -38,11 +38,14 @@ export default function PropertyCard({ property }) {
           </div>
 
           {/* Wishlist Button */}
-          <button 
+          <button
             onClick={(e) => { e.preventDefault(); toggleWishlist(propId); }}
-            className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition ${saved ? 'bg-pink-600 text-white' : 'bg-slate-900/60 text-slate-300 hover:text-white'}`}
+            title={saved ? 'Remove from wishlist' : 'Save to wishlist'}
+            aria-label={saved ? 'Remove from wishlist' : 'Save to wishlist'}
+            aria-pressed={saved}
+            className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition ${saved ? 'bg-blue-600 text-white' : 'bg-slate-900/60 text-slate-300 hover:text-white'}`}
           >
-            <Heart className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />
+            <Bookmark className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />
           </button>
 
           {/* Price Tag Overlay */}

@@ -1,0 +1,20 @@
+# Keep shell scripts and the git hook LF-only. Git would otherwise hand them
+# CRLF endings on Windows checkouts, and both consumers run on Linux:
+#   - .githooks/pre-push runs under Git Bash / sh
+#   - debug-vercel.sh runs under bash
+# A CRLF shebang line makes the kernel look for the interpreter "/bin/bash\r",
+# which does not exist -> "bad interpreter: No such file or directory".
+* text=auto eol=lf
+
+*.sh text eol=lf
+.githooks/* text eol=lf
+*.yml text eol=lf
+
+# Binary assets must never be line-ending converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pkl binary
+*.joblib binary

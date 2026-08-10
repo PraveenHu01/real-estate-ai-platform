@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Refuse to push code that Vercel would fail to build.
+#
+# Enable once:  git config core.hooksPath .githooks
+# Bypass once:  git push --no-verify   (use sparingly)
+set -uo pipefail
+
+RED=$'\033[31m'; GRN=$'\033[32m'; YLW=$'\033[33m'; DIM=$'\033[2m'; RST=$'\033[0m'
+fail() { printf '\n%s✖ push blocked: %s%s\n' "$RED" "$1" "$RST"; exit 1; }
+
+ROOT=$(git rev-parse --show-toplevel) || exit 0
+cd "$ROOT" || exit 0
+
+# 1. An import of a file that was never committed builds locally (the file is on
+#    your disk) and dies on Vercel with MODULE_NOT_FOUND. Catch it before push.
+UNTRACKED=$(git ls-files --others --exclude-standard -- '*.js' '*.jsx' 2>/dev/null || true)
+if [ -n "$UNTRACKED" ]; then
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    base=$(basename "$f"); base="${base%.*}"
+    if git grep -qE "(require|from)[^\"']*['\"][^\"']*/${base}['\"]" HEAD -- '*.js' '*.jsx' 2>/dev/null; then
+      printf '%s%s is imported by committed code but is not tracked.%s\n' "$YLW" "$f" "$RST"
+      fail "run: git add $f"
+    fi
+  done <<< "$UNTRACKED"
+fi
+
+# 2. Never let a real .env reach the remote.
+STAGED=$(git diff --cached --name-only 2>/dev/null; git log --name-only --pretty=format: origin/HEAD..HEAD 2>/dev/null || true)
+if printf '%s' "$STAGED" | grep -qE '(^|/)\.env($|\.)' && ! printf '%s' "$STAGED" | grep -qE '\.env\.example$'; then
+  fail "a .env file is in this push — remove it and rotate the keys inside"
+fi
+
+# 3. The build Vercel runs. Warm local node_modules hide missing deps, so this
+#    is not a perfect proxy, but it catches syntax and import errors.
+printf '%srunning production build...%s\n' "$DIM" "$RST"
+if ! OUT=$(npm run build 2>&1); then
+  printf '%s%s%s\n' "$DIM" "$(printf '%s' "$OUT" | tail -20)" "$RST"
+  fail "npm run build failed — Vercel would keep serving the previous deploy"
+fi
+
+# 4. The serverless entry must load on its own.
+if ! node -e "require('./api/index.js')" >/dev/null 2>&1; then
+  fail "api/index.js cannot be required — every /api route would 500"
+fi
+
+printf '%s✔ build clean — pushing%s\n' "$GRN" "$RST"
+exit 0

@@ -7,7 +7,7 @@ import ChatModal from '../components/ChatModal';
 import { WishlistContext } from '../context/WishlistContext';
 import { 
   MapPin, Bed, Bath, Maximize2, Calendar, TrendingUp,
-  FileText, MessageSquare, Phone, Mail, Heart, CheckCircle2, ArrowLeft
+  FileText, MessageSquare, Phone, Mail, Bookmark, CheckCircle2, ArrowLeft
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -105,11 +105,14 @@ export default function PropertyDetailsPage() {
             <span className="text-xs text-slate-400 block">List Price</span>
             <span className="text-3xl font-black text-white">₹{property.price_lakhs} Lakhs</span>
           </div>
-          <button 
+          <button
             onClick={() => toggleWishlist(property.id || property._id)}
-            className={`p-3 rounded-2xl border transition ${saved ? 'bg-pink-600 border-pink-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'}`}
+            title={saved ? 'Remove from wishlist' : 'Save to wishlist'}
+            aria-label={saved ? 'Remove from wishlist' : 'Save to wishlist'}
+            aria-pressed={saved}
+            className={`p-3 rounded-2xl border transition ${saved ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'}`}
           >
-            <Heart className={`w-6 h-6 ${saved ? 'fill-current' : ''}`} />
+            <Bookmark className={`w-6 h-6 ${saved ? 'fill-current' : ''}`} />
           </button>
         </div>
       </div>

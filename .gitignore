@@ -50,5 +50,15 @@ desktop.ini
 .cache/
 coverage/
 
-.vercel
-.env*
+# === Vercel ===
+# Ignore everything Vercel writes locally. project.json is deliberately NOT
+# re-included: `git add .` would then have to descend into .vercel/ to find it,
+# which puts .env.production.local (real production secrets) one missing rule
+# away from being staged. Keeping the whole directory opaque is safer, and
+# `vercel link` regenerates project.json in seconds.
+.vercel/
+
+# NOTE: `.env` / `.env.*` are already ignored at the top of this file, with an
+# exception for .env.example. A bare `.env*` here would also swallow
+# .env.example and, more importantly, any file merely starting with "env" —
+# which is how tracked source can go missing without you noticing.

@@ -180,16 +180,34 @@ async function getMarketStats(city) {
   };
 }
 
-/** Cities actually present in the data — never a hardcoded list. */
+/**
+ * Every market the platform can offer, not just the ones with live listings.
+ *
+ * The catalogue only carries a handful of cities, but CITY_PROFILES prices
+ * twenty across India. Returning only the former left the recommendation city
+ * picker showing five options on a nationwide platform. Cities with no
+ * listings come back with `listings: 0` and `modelled: true` so callers can
+ * label them honestly rather than implying inventory that does not exist.
+ *
+ * Catalogue cities sort first by listing count, then the modelled-only
+ * markets alphabetically.
+ */
 async function listCities() {
+  const { listProfileCities } = require('../utils/cityProfiles');
+
   const all = await loadAll();
   const counts = {};
   for (const p of all) counts[p.city] = (counts[p.city] || 0) + 1;
-  return {
-    cities: Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, listings]) => ({ city: name, listings })),
-  };
+
+  const withListings = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, listings]) => ({ city: name, listings, modelled: false }));
+
+  const modelledOnly = listProfileCities()
+    .filter((name) => !counts[name])
+    .map((name) => ({ city: name, listings: 0, modelled: true }));
+
+  return { cities: [...withListings, ...modelledOnly] };
 }
 
 module.exports = { searchProperties, getPropertyDetails, getMarketStats, listCities, MAX_ROWS };

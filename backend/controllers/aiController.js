@@ -4,7 +4,12 @@ const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 
 // Both fallbacks below share one source of per-city figures, so /predict-price
 // and /investment-analysis cannot report different growth for the same city.
-const { estimatePrice, investmentForecast } = require('../utils/cityProfiles');
+const {
+  estimatePrice,
+  investmentForecast,
+  cityProfile,
+  cityLocalities,
+} = require('../utils/cityProfiles');
 
 exports.predictPrice = async (req, res) => {
   try {
@@ -46,6 +51,93 @@ exports.investmentAnalysis = async (req, res) => {
   }
 };
 
+// Typical carpet area by bedroom count, used to size modelled suggestions.
+const NOMINAL_AREA_SQFT = { 1: 520, 2: 950, 3: 1450, 4: 2200, 5: 3000 };
+
+/**
+ * Build suggestions for a market the catalogue has no listings for.
+ *
+ * The catalogue carries five cities; CITY_PROFILES prices twenty. Without this
+ * the engine returned an empty grid for the other fifteen, which reads as
+ * broken rather than as "no inventory here yet". These entries are derived
+ * from the city's own rate and growth band — the same figures /predict-price
+ * uses — and are flagged `modelled: true` so the UI never presents them as
+ * real listings for sale.
+ *
+ * Deterministic on purpose: no randomness, so the same request always yields
+ * the same set.
+ */
+function modelledSuggestions({ city, budget_lakhs, bedrooms, preferred_locality, limit = 9 }) {
+  const profile = cityProfile(city);
+  const localities = cityLocalities(city);
+
+  // Surface the locality the user actually asked about first.
+  const query = String(preferred_locality || '').trim().toLowerCase();
+  const ordered = [...localities].sort((a, b) => {
+    if (!query) return 0;
+    return (a.toLowerCase().includes(query) ? 0 : 1) - (b.toLowerCase().includes(query) ? 0 : 1);
+  });
+
+  // With no bedroom preference, vary the mix rather than showing nine 2BHKs.
+  const bhkCycle = bedrooms ? [Number(bedrooms)] : [2, 3, 1, 4];
+
+  const candidates = ordered.map((locality, i) => {
+    const bhk = bhkCycle[i % bhkCycle.length];
+    const nominal = NOMINAL_AREA_SQFT[bhk] || 1000;
+    const area_sqft = Math.round(nominal * (0.88 + (i % 4) * 0.09));
+    const age_years = [1, 4, 8, 12, 3][i % 5];
+    const parking = bhk >= 3 ? 2 : 1;
+    const floor = [3, 6, 9, 2, 12][i % 5];
+
+    const price_lakhs = estimatePrice({ city, area_sqft, age_years, parking, floor });
+    const forecast = investmentForecast({ current_price_lakhs: price_lakhs, city, age_years });
+
+    // Earlier localities in each city's table are the better-connected ones,
+    // so distances widen down the list instead of being uniform.
+    const school_dist_m = 300 + (i % 5) * 220;
+    const hospital_dist_m = 400 + (i % 4) * 320;
+    const metro_dist_m = 500 + (i % 6) * 480;
+    const nearby_facilities = { school_dist_m, hospital_dist_m, metro_dist_m };
+
+    return {
+      id: `model-${city.toLowerCase().replace(/\s+/g, '-')}-${i + 1}`,
+      title: `${bhk} BHK in ${locality}`,
+      city,
+      location: locality,
+      price_lakhs,
+      area_sqft,
+      price_per_sqft: Math.round((price_lakhs * 100000) / area_sqft),
+      bedrooms: bhk,
+      bathrooms: bhk >= 2 ? bhk : 1,
+      age_years,
+      parking,
+      floor,
+      furnished: age_years <= 3 ? 'Semi-Furnished' : 'Unfurnished',
+      roi_5y_pct: forecast.expected_roi_5y_pct,
+      predicted_price_5y: forecast.predicted_price_5y,
+      ai_rating: forecast.ai_rating,
+      crime_score: profile.crime,
+      school_dist_m,
+      hospital_dist_m,
+      metro_dist_m,
+      nearby_facilities,
+      modelled: true,
+    };
+  });
+
+  // Same 10% tolerance the catalogue search uses.
+  const withinBudget = candidates.filter((p) => p.price_lakhs <= budget_lakhs * 1.1);
+  if (withinBudget.length) return withinBudget.slice(0, limit);
+
+  // Nothing in this market reaches the budget. Return the cheapest anyway,
+  // flagged, so the UI can say how far off it is instead of showing nothing.
+  return candidates
+    .slice()
+    .sort((a, b) => a.price_lakhs - b.price_lakhs)
+    .slice(0, limit)
+    .map((p) => ({ ...p, above_budget: true }));
+}
+
 exports.recommendProperties = async (req, res) => {
   try {
     const { searchProperties } = require('../services/propertyQuery');
@@ -73,9 +165,49 @@ exports.recommendProperties = async (req, res) => {
       with_media: true,
     });
 
+    // A specific city with no catalogue inventory still gets suggestions,
+    // derived from its own market profile and labelled as modelled.
+    const usingModelled = properties.length === 0 && preferred_city && preferred_city !== 'All';
+    const candidates = usingModelled
+      ? modelledSuggestions({
+          city: preferred_city,
+          budget_lakhs,
+          bedrooms,
+          preferred_locality,
+        })
+      : properties;
+
     // Transparent weighted score. Every component is 0..1 before weighting,
     // so the published weights are the whole story — no hidden constants.
-    const scored = properties.map((p) => {
+    //
+    // `value` is the one component the hand-written formula cannot produce: it
+    // compares each asking price against the trained model's fair value, so a
+    // listing priced under what its attributes justify ranks above an identical
+    // one priced over. It is only included when a trained model is loaded.
+    const valuation = require('../utils/valuationModel');
+    const hasValuation = valuation.isAvailable();
+
+    const BASE_WEIGHTS = {
+      budget_fit: 0.30,
+      roi_potential: 0.25,
+      proximity: 0.20,
+      safety: 0.15,
+      locality_match: 0.10,
+    };
+    const VALUE_WEIGHT = 0.20;
+
+    // With a model loaded the value component takes its 20% and the others are
+    // scaled to share the remaining 80%, keeping the total at exactly 1.0.
+    // Without one, the base weights are used unchanged — scoring an unknown
+    // value as a neutral 0.5 would invent an opinion the model never gave.
+    const weights = hasValuation
+      ? { ...Object.fromEntries(
+            Object.entries(BASE_WEIGHTS).map(([k, w]) => [k, w * (1 - VALUE_WEIGHT)])
+          ),
+          value: VALUE_WEIGHT }
+      : BASE_WEIGHTS;
+
+    const scored = candidates.map((p) => {
       const budgetFit = p.price_lakhs <= budget_lakhs
         ? 1
         : Math.max(0, 1 - (p.price_lakhs - budget_lakhs) / budget_lakhs);
@@ -100,24 +232,46 @@ exports.recommendProperties = async (req, res) => {
         : String(p.location || '').toLowerCase()
             .includes(String(preferred_locality).toLowerCase()) ? 1 : 0;
 
-      const ai_match_score = Math.round(
-        (budgetFit * 0.30 +
-          roiScore * 0.25 +
-          proximityScore * 0.20 +
-          safetyScore * 0.15 +
-          localityScore * 0.10) * 100
-      );
+      // Modelled suggestions are priced *by* this model, so valuing them
+      // against it would score every one a perfect 1.0 on a tautology. Only
+      // real catalogue listings carry an asking price the model can judge.
+      const assessment = usingModelled ? null : valuation.valueAssessment(p);
+
+      let ai_match_score =
+        budgetFit * weights.budget_fit +
+        roiScore * weights.roi_potential +
+        proximityScore * weights.proximity +
+        safetyScore * weights.safety +
+        localityScore * weights.locality_match;
+
+      // A modelled row under a value-weighted scheme would otherwise be capped
+      // at 80 purely for lacking a component it cannot have. Renormalise it
+      // across the components it does carry so it stays comparable.
+      if (hasValuation) {
+        ai_match_score += assessment
+          ? assessment.score * weights.value
+          : ai_match_score * (VALUE_WEIGHT / (1 - VALUE_WEIGHT));
+      }
+
+      const match_breakdown = {
+        budget_fit: Math.round(budgetFit * 100),
+        roi_potential: Math.round(roiScore * 100),
+        proximity: Math.round(proximityScore * 100),
+        safety: Math.round(safetyScore * 100),
+        locality_match: Math.round(localityScore * 100),
+      };
+      if (assessment) match_breakdown.value = Math.round(assessment.score * 100);
 
       return {
         ...p,
-        ai_match_score,
-        match_breakdown: {
-          budget_fit: Math.round(budgetFit * 100),
-          roi_potential: Math.round(roiScore * 100),
-          proximity: Math.round(proximityScore * 100),
-          safety: Math.round(safetyScore * 100),
-          locality_match: Math.round(localityScore * 100),
-        },
+        ai_match_score: Math.round(ai_match_score * 100),
+        match_breakdown,
+        // Surfaced so the card can say "12% below modelled value" rather than
+        // only showing an unexplained score.
+        ...(assessment && {
+          fair_value_lakhs: assessment.fair_value_lakhs,
+          value_discount_pct: assessment.discount_pct,
+        }),
       };
     });
 
@@ -126,20 +280,21 @@ exports.recommendProperties = async (req, res) => {
     return res.json({
       recommendations: scored,
       count: scored.length,
-      total_matches,
+      total_matches: usingModelled ? scored.length : total_matches,
+      // 'catalogue' = real listings. 'modelled' = derived from the city's
+      // market profile because no listing exists there yet.
+      source: usingModelled ? 'modelled' : 'catalogue',
       ai_criteria_used: {
         budget_lakhs,
         preferred_city,
         bedrooms: bedrooms ?? null,
         preferred_locality: preferred_locality ?? null,
       },
-      scoring_weights: {
-        budget_fit: 0.30,
-        roi_potential: 0.25,
-        proximity: 0.20,
-        safety: 0.15,
-        locality_match: 0.10,
-      },
+      // The weights actually applied, not a fixed list — they differ depending
+      // on whether a trained valuation model was loaded, and reporting the
+      // wrong set would make the breakdown bars unexplainable.
+      scoring_weights: weights,
+      valuation_model: valuation.modelInfo(),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
