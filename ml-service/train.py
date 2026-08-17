@@ -1,16 +1,34 @@
+import sys
+import os
+import json
+import joblib
 import pandas as pd
 import numpy as np
-import os
-import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+# Ensure stdout and stderr handle utf-8 safely on Windows
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 # Resolve paths relative to this script's directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATASET_FILE = os.path.join(BASE_DIR, "dataset.csv")
 MODEL_FILE = os.path.join(BASE_DIR, "model.pkl")
+
+# The exported valuation model lives under backend/utils/ rather than here.
+# Both runtimes read this one file — Node bundles it on Vercel (where the
+# Python service cannot be deployed at all) and predict.py loads the same copy
+# — so a property's fair value cannot differ between the two. Writing a second
+# copy into ml-service/ would reintroduce exactly the drift this avoids.
+VALUATION_FILE = os.path.join(BASE_DIR, "..", "backend", "utils", "valuationModel.json")
 
 # Set seed for reproducibility
 np.random.seed(42)
@@ -209,6 +227,108 @@ def generate_indian_real_estate_dataset(n_samples=10000):
     print(f"Generated {len(df)} real estate records and saved to {DATASET_FILE}")
     return df
 
+def export_valuation_model(df, rf_r2, rf_rmse):
+    """Fit and export a linear valuation model the Node API can score natively.
+
+    The Random Forest cannot cross the language boundary — 100 trees at depth
+    15 serialize to tens of MB and need sklearn to evaluate. The recommendation
+    engine does not need the forest's precision: it needs a *fair value* to
+    compare each asking price against, and a ridge fit on log-price gives that
+    in a form both runtimes can evaluate identically from plain coefficients.
+
+    Log-price is the target because price is multiplicative in this data —
+    area, city rate and age decay all scale the price rather than shifting it,
+    which is exactly what a linear model in log space represents.
+    """
+    passthrough_cols = [
+        "bedrooms", "bathrooms", "age_years",
+        "parking", "floor", "furnished_code",
+        "crime_score", "school_dist_m", "hospital_dist_m", "metro_dist_m",
+    ]
+
+    X = df[passthrough_cols].astype(float).copy()
+
+    # log(area), not area. Price is very nearly proportional to area, and with
+    # log-price as the target a raw-area coefficient would make price grow
+    # *exponentially* in area — badly wrong across the 400–3500 sqft range in
+    # this data. In log-log form the coefficient is an elasticity and should
+    # land near 1.0, which is also a useful sanity check on the fit.
+    X.insert(0, "log_area", np.log(df["area_sqft"].astype(float)))
+
+    # Per-city intercepts in log space. Every city in CITIES_DATA gets one, so
+    # no market silently falls back to another city's baseline the way the
+    # one-hot forest does when a city is missing from its training columns.
+    cities = sorted(df["city"].unique())
+    for city in cities:
+        X[f"city_{city}"] = (df["city"] == city).astype(float)
+
+    y_log = np.log(df["price_lakhs"].astype(float))
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y_log, test_size=0.2, random_state=42
+    )
+
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    ridge = Ridge(alpha=1.0, random_state=42)
+    ridge.fit(X_train_scaled, y_train)
+
+    # Score in the original price units, not log units: an R² on log-price
+    # would look flattering while saying nothing about rupee accuracy.
+    pred_lakhs = np.exp(ridge.predict(X_test_scaled))
+    true_lakhs = np.exp(y_test)
+    val_r2 = r2_score(true_lakhs, pred_lakhs)
+    val_mae = mean_absolute_error(true_lakhs, pred_lakhs)
+    # Median absolute percentage error — the figure that matters for a
+    # "is this asking price fair?" comparison, and robust to the long tail
+    # of Mumbai penthouses that would dominate a mean.
+    val_mape = float(np.median(np.abs(pred_lakhs - true_lakhs) / true_lakhs) * 100)
+
+    # Fold the scaler into the coefficients so the consumer needs no scaling
+    # step: for standardized x, w·(x-mean)/scale + b == (w/scale)·x + (b - w·mean/scale).
+    raw_coef = ridge.coef_ / scaler.scale_
+    raw_intercept = float(ridge.intercept_ - np.sum(ridge.coef_ * scaler.mean_ / scaler.scale_))
+
+    columns = list(X.columns)
+    numeric_weights = {c: float(w) for c, w in zip(columns, raw_coef) if not c.startswith("city_")}
+    city_weights = {
+        c[len("city_"):]: float(w) for c, w in zip(columns, raw_coef) if c.startswith("city_")
+    }
+
+    payload = {
+        "_comment": (
+            "GENERATED FILE — do not edit by hand. Rewritten by "
+            "ml-service/train.py; run `python train.py --regenerate` to update. "
+            "Ridge regression on log(price_lakhs); predict with "
+            "exp(intercept + sum(w_i * x_i) + city_weight)."
+        ),
+        "target": "log_price_lakhs",
+        "intercept": raw_intercept,
+        "numeric_weights": numeric_weights,
+        "city_weights": city_weights,
+        "metrics": {
+            "valuation_r2": round(float(val_r2), 4),
+            "valuation_mae_lakhs": round(float(val_mae), 2),
+            "valuation_median_ape_pct": round(val_mape, 2),
+            "forest_r2": round(float(rf_r2), 4),
+            "forest_rmse_lakhs": round(float(rf_rmse), 2),
+            "training_rows": int(len(df)),
+            "cities": len(cities),
+        },
+    }
+
+    os.makedirs(os.path.dirname(VALUATION_FILE), exist_ok=True)
+    with open(VALUATION_FILE, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2)
+        fh.write("\n")
+
+    print(f"--- Valuation Model (JS-portable) ---")
+    print(f"R^2 (price units): {val_r2:.4f}  |  MAE: Rs. {val_mae:.2f}L  |  Median APE: {val_mape:.2f}%")
+    print(f"Exported to {os.path.normpath(VALUATION_FILE)}")
+
+
 def train_model(regenerate=False):
     """Train the price model. Pass regenerate=True (or --regenerate on the
     command line) to rebuild dataset.csv from the current city table — needed
@@ -255,8 +375,8 @@ def train_model(regenerate=False):
 
     print(f"--- Model Training Complete ---")
     print(f"Rows: {len(df)}  |  Cities: {df['city'].nunique()}  |  Features: {len(feature_names)}")
-    print(f"R² Score: {r2:.4f}")
-    print(f"RMSE (in Lakhs ₹): {rmse:.2f}")
+    print(f"R^2 Score: {r2:.4f}")
+    print(f"RMSE (in Lakhs Rs.): {rmse:.2f}")
 
     # Save artifacts
     artifacts = {
@@ -266,6 +386,9 @@ def train_model(regenerate=False):
     }
     joblib.dump(artifacts, MODEL_FILE)
     print(f"Saved model artifacts to {MODEL_FILE}")
+
+    # Export the portable valuation model the recommendation engine scores with.
+    export_valuation_model(df, r2, rmse)
 
 if __name__ == "__main__":
     import sys

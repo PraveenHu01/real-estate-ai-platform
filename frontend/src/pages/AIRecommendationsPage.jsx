@@ -4,9 +4,12 @@ import { Sparkles, Compass, AlertCircle, Loader2, FlaskConical } from 'lucide-re
 import api from '../services/api';
 
 // Weight labels mirror scoring_weights returned by /ai/recommend. Keeping the
-// order fixed makes the bars comparable across cards.
+// order fixed makes the bars comparable across cards. 'value' only appears
+// when a trained valuation model is loaded server-side, so cards are filtered
+// against the breakdown each one actually carries.
 const BREAKDOWN_FIELDS = [
   ['budget_fit', 'Budget'],
+  ['value', 'Value'],
   ['roi_potential', 'ROI'],
   ['proximity', 'Proximity'],
   ['safety', 'Safety'],
@@ -221,7 +224,9 @@ export default function AIRecommendationsPage() {
 
                   {prop.match_breakdown && (
                     <div className="space-y-1.5">
-                      {BREAKDOWN_FIELDS.map(([key, label]) => (
+                      {BREAKDOWN_FIELDS
+                        .filter(([key]) => prop.match_breakdown[key] != null)
+                        .map(([key, label]) => (
                         <div key={key} className="flex items-center space-x-2">
                           <span className="w-16 shrink-0 text-[10px] text-slate-400">{label}</span>
                           <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
@@ -236,6 +241,17 @@ export default function AIRecommendationsPage() {
                         </div>
                       ))}
                     </div>
+                  )}
+
+                  {/* What the model concluded, in rupees rather than as a bare
+                      score. Only shown at ±1% or more — below that the gap is
+                      inside the model's own error and reads as false precision. */}
+                  {prop.fair_value_lakhs != null && Math.abs(prop.value_discount_pct) >= 1 && (
+                    <p className={`text-[10px] ${prop.value_discount_pct > 0 ? 'text-emerald-300' : 'text-slate-400'}`}>
+                      {prop.value_discount_pct > 0
+                        ? `${prop.value_discount_pct}% below modelled value of ₹${prop.fair_value_lakhs}L`
+                        : `${Math.abs(prop.value_discount_pct)}% above modelled value of ₹${prop.fair_value_lakhs}L`}
+                    </p>
                   )}
 
                   {prop.above_budget && (

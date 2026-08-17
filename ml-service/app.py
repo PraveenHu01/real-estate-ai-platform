@@ -58,7 +58,12 @@ def home():
         "status": "online",
         "service": "AI Real Estate Engine",
         "model_loaded": os.path.exists(MODEL_PATH),
-        "dataset_loaded": os.path.exists(DATASET_PATH)
+        "dataset_loaded": os.path.exists(DATASET_PATH),
+        # Surfaced so a deploy running a stale or missing valuation export is
+        # visible from the health check rather than only in the price numbers.
+        "valuation_model": (
+            ai_engine.valuation.get("metrics") if ai_engine.valuation else None
+        ),
     }
 
 @app.post("/predict-price")
@@ -111,95 +116,142 @@ def investment_analysis(req: InvestmentRequest):
 
 @app.post("/recommend-properties")
 def recommend_properties(req: RecommendationRequest):
-    # Dummy mock algorithm matching properties based on score
-    # In production, fetches DB properties and ranks by vector cosine distance or match score
-    mock_dataset = [
-        {
-            "id": "prop-101",
-            "title": "Luxury 2BHK Apartment near MP Nagar",
-            "city": "Bhopal",
-            "location": "MP Nagar",
-            "price_lakhs": 58.5,
-            "area_sqft": 1150,
-            "bedrooms": 2,
-            "bathrooms": 2,
-            "furnished": "Fully-Furnished",
-            "school_dist_m": 450,
-            "hospital_dist_m": 800,
-            "metro_dist_m": 1200,
-            "ai_match_score": 96,
-            "roi_5y_pct": 44.5,
-            "image": "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80"
-        },
-        {
-            "id": "prop-102",
-            "title": "3BHK Premium Greens Flat",
-            "city": "Bhopal",
-            "location": "Arera Colony",
-            "price_lakhs": 78.0,
-            "area_sqft": 1650,
-            "bedrooms": 3,
-            "bathrooms": 3,
-            "furnished": "Semi-Furnished",
-            "school_dist_m": 600,
-            "hospital_dist_m": 500,
-            "metro_dist_m": 900,
-            "ai_match_score": 92,
-            "roi_5y_pct": 48.0,
-            "image": "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80"
-        },
-        {
-            "id": "prop-103",
-            "title": "Modern 2BHK Smart Home",
-            "city": "Indore",
-            "location": "Vijay Nagar",
-            "price_lakhs": 62.0,
-            "area_sqft": 1200,
-            "bedrooms": 2,
-            "bathrooms": 2,
-            "furnished": "Fully-Furnished",
-            "school_dist_m": 500,
-            "hospital_dist_m": 650,
-            "metro_dist_m": 800,
-            "ai_match_score": 95,
-            "roi_5y_pct": 52.1,
-            "image": "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80"
-        },
-        {
-            "id": "prop-104",
-            "title": "Ultra Modern 3BHK Tech Residence",
-            "city": "Bengaluru",
-            "location": "Indiranagar",
-            "price_lakhs": 145.0,
-            "area_sqft": 1750,
-            "bedrooms": 3,
-            "bathrooms": 3,
-            "furnished": "Fully-Furnished",
-            "school_dist_m": 300,
-            "hospital_dist_m": 400,
-            "metro_dist_m": 500,
-            "ai_match_score": 98,
-            "roi_5y_pct": 62.4,
-            "image": "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80"
-        }
-    ]
+    try:
+        if ai_engine.dataset is None and os.path.exists(DATASET_PATH):
+            ai_engine.dataset = pd.read_csv(DATASET_PATH)
 
-    filtered = [
-        p for p in mock_dataset 
-        if p["city"].lower() == req.preferred_city.lower() or req.preferred_city.lower() == "all"
-    ]
-    if not filtered:
-        filtered = mock_dataset
+        if ai_engine.dataset is None or len(ai_engine.dataset) == 0:
+            raise HTTPException(status_code=503, detail="Dataset not loaded. Run train.py first.")
 
-    return {
-        "recommendations": filtered,
-        "count": len(filtered),
-        "ai_criteria_used": {
-            "budget_lakhs": req.budget_lakhs,
-            "preferred_city": req.preferred_city,
-            "bedrooms": req.bedrooms
+        df = ai_engine.dataset.copy()
+
+        # Apply filters
+        if req.preferred_city and req.preferred_city.lower() != "all":
+            df = df[df["city"].str.lower() == req.preferred_city.lower()]
+
+        if req.bedrooms is not None:
+            df = df[df["bedrooms"] == req.bedrooms]
+
+        # Filter within 110% of budget
+        budget = float(req.budget_lakhs)
+        max_budget = budget * 1.1
+        within_budget = df[df["price_lakhs"] <= max_budget]
+        if not within_budget.empty:
+            df = within_budget
+
+        if df.empty:
+            # Fallback to all cities within budget or cheapest available
+            df = ai_engine.dataset[ai_engine.dataset["price_lakhs"] <= max_budget]
+            if df.empty:
+                df = ai_engine.dataset.sort_values("price_lakhs").head(12)
+
+        results = []
+        for _, row in df.head(100).iterrows():
+            price = float(row["price_lakhs"])
+            budget_fit = 1.0 if price <= budget else max(0.0, 1.0 - (price - budget) / budget)
+            
+            # ROI score
+            growth = float(row.get("annual_growth_rate", 0.08))
+            roi_5y = ((1 + growth) ** 5 - 1) * 100
+            roi_score = min(1.0, roi_5y / 70.0)
+
+            # Safety score (1.0 safe .. 6.0 high crime)
+            crime = float(row.get("crime_score", 2.5))
+            safety_score = max(0.0, min(1.0, (6.0 - crime) / 5.0))
+
+            # Proximity
+            school_dist = float(row.get("school_dist_m", 1000))
+            hosp_dist = float(row.get("hospital_dist_m", 1500))
+            metro_dist = float(row.get("metro_dist_m", 2000))
+            
+            prox_score = (
+                max(0.0, 1.0 - school_dist / 3000.0) * 0.4 +
+                max(0.0, 1.0 - hosp_dist / 4000.0) * 0.3 +
+                max(0.0, 1.0 - metro_dist / 5000.0) * 0.3
+            )
+
+            # Locality match
+            loc_query = (req.preferred_locality or "").strip().lower()
+            locality = str(row.get("location", ""))
+            loc_match = 1.0 if (not loc_query or loc_query in locality.lower()) else 0.5
+
+            # Fair value assessment
+            fair_val = ai_engine.fair_value_lakhs(
+                city=str(row["city"]),
+                area_sqft=float(row["area_sqft"]),
+                bedrooms=int(row["bedrooms"]),
+                bathrooms=int(row.get("bathrooms", 1)),
+                age_years=int(row.get("age_years", 5)),
+                parking=int(row.get("parking", 1)),
+                floor=int(row.get("floor", 3)),
+                furnished_code=int(row.get("furnished_code", 1)),
+                crime_score=crime,
+                school_dist_m=int(school_dist),
+                hospital_dist_m=int(hosp_dist),
+                metro_dist_m=int(metro_dist)
+            )
+
+            val_score = 0.5
+            if fair_val and fair_val > 0:
+                discount_pct = round(((fair_val - price) / fair_val) * 100, 1)
+                val_score = max(0.0, min(1.0, 0.5 + (discount_pct / 40.0)))
+
+            total_score = (
+                budget_fit * 0.24 +
+                roi_score * 0.20 +
+                prox_score * 0.16 +
+                safety_score * 0.12 +
+                loc_match * 0.08 +
+                val_score * 0.20
+            )
+
+            results.append({
+                "id": f"ml-prop-{len(results) + 1}",
+                "title": f"{int(row['bedrooms'])} BHK in {locality}",
+                "city": str(row["city"]),
+                "location": locality,
+                "price_lakhs": round(price, 2),
+                "area_sqft": int(row["area_sqft"]),
+                "bedrooms": int(row["bedrooms"]),
+                "bathrooms": int(row.get("bathrooms", 1)),
+                "age_years": int(row.get("age_years", 5)),
+                "roi_5y_pct": round(roi_5y, 1),
+                "ai_rating": round(min(9.8, max(6.0, 7.0 + roi_5y / 15.0)), 1),
+                "crime_score": crime,
+                "school_dist_m": int(school_dist),
+                "hospital_dist_m": int(hosp_dist),
+                "metro_dist_m": int(metro_dist),
+                "ai_match_score": int(round(total_score * 100)),
+                "fair_value_lakhs": fair_val,
+                "match_breakdown": {
+                    "budget_fit": int(round(budget_fit * 100)),
+                    "roi_potential": int(round(roi_score * 100)),
+                    "proximity": int(round(prox_score * 100)),
+                    "safety": int(round(safety_score * 100)),
+                    "locality_match": int(round(loc_match * 100)),
+                    "value": int(round(val_score * 100))
+                }
+            })
+
+        results.sort(key=lambda x: x["ai_match_score"], reverse=True)
+        top_picks = results[:12]
+
+        return {
+            "recommendations": top_picks,
+            "count": len(top_picks),
+            "total_matches": len(results),
+            "source": "ml_dataset",
+            "scoring_weights": {
+                "budget_fit": 0.24,
+                "roi_potential": 0.20,
+                "proximity": 0.16,
+                "safety": 0.12,
+                "locality_match": 0.08,
+                "value": 0.20
+            }
         }
-    }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/ai-chat")
 def ai_chatbot(req: AIChatRequest):

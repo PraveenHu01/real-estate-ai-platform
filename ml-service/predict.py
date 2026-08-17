@@ -1,4 +1,5 @@
 import os
+import json
 import joblib
 import pandas as pd
 import numpy as np
@@ -7,6 +8,12 @@ import numpy as np
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "model.pkl")
 DATASET_PATH = os.path.join(BASE_DIR, "dataset.csv")
+
+# Shared JS-portable valuation model — the same file Node scores with on
+# Vercel, written by train.py. predict_price() prefers it over the forest so a
+# price is never returned by an artifact that has silently lost its city
+# coverage (see the stale-one-hot comment in predict_price).
+VALUATION_PATH = os.path.join(BASE_DIR, "..", "backend", "utils", "valuationModel.json")
 
 # Single source of truth for per-city market assumptions, used by the formula
 # fallback, the investment projection, and the safety lookup. Values are the
@@ -55,6 +62,7 @@ class PropertyAIEngine:
     def __init__(self):
         self.artifacts = None
         self.dataset = None
+        self.valuation = None
         self.load_artifacts()
 
     def load_artifacts(self):
@@ -67,6 +75,20 @@ class PropertyAIEngine:
         else:
             print(f"model.pkl not found at {MODEL_PATH}. Using formula fallback. Run train.py first.")
 
+        if os.path.exists(VALUATION_PATH):
+            try:
+                with open(VALUATION_PATH, "r", encoding="utf-8") as fh:
+                    self.valuation = json.load(fh)
+                metrics = self.valuation.get("metrics", {})
+                print(
+                    f"Valuation model loaded: {metrics.get('cities')} cities, "
+                    f"median APE {metrics.get('valuation_median_ape_pct')}%."
+                )
+            except Exception as e:
+                print(f"Error loading valuationModel.json: {e}")
+        else:
+            print(f"valuationModel.json not found at {VALUATION_PATH}. Run train.py to generate it.")
+
         if os.path.exists(DATASET_PATH):
             try:
                 self.dataset = pd.read_csv(DATASET_PATH)
@@ -74,14 +96,74 @@ class PropertyAIEngine:
             except Exception as e:
                 print(f"Error loading dataset.csv: {e}")
 
+    def fair_value_lakhs(self, city, area_sqft, bedrooms, bathrooms, age_years,
+                         parking=1, floor=3, furnished_code=1, crime_score=2.5,
+                         school_dist_m=800, hospital_dist_m=1200, metro_dist_m=1500):
+        """Modelled fair value in lakhs, or None when no valuation model exists.
+
+        Mirrors backend/utils/valuationModel.js exactly — same file, same
+        arithmetic — so both runtimes agree to the rupee.
+        """
+        if not self.valuation or not area_sqft or area_sqft <= 0:
+            return None
+
+        features = {
+            # Must match train.py and valuationModel.js: the fit is log-log in
+            # area, so this is log(area_sqft), not area_sqft.
+            "log_area": float(np.log(area_sqft)),
+            "bedrooms": bedrooms,
+            "bathrooms": bathrooms,
+            "age_years": age_years,
+            "parking": parking,
+            "floor": floor,
+            "furnished_code": furnished_code,
+            "crime_score": crime_score,
+            "school_dist_m": school_dist_m,
+            "hospital_dist_m": hospital_dist_m,
+            "metro_dist_m": metro_dist_m,
+        }
+
+        log_price = self.valuation["intercept"]
+        for name, weight in self.valuation["numeric_weights"].items():
+            log_price += weight * features.get(name, 0)
+        log_price += self.valuation["city_weights"].get(city, 0)
+
+        value = float(np.exp(log_price))
+        if not np.isfinite(value) or value <= 0:
+            return None
+        return round(value, 2)
+
     def predict_price(self, city, location, area_sqft, bedrooms, bathrooms,
                       age_years, parking=1, floor=3, furnished_code=1):
         """Predict property price in Lakhs ₹ using ML model or formula fallback."""
+        # The valuation model is preferred over the forest because it carries an
+        # explicit weight for every city it was trained on. The forest encodes
+        # cities as one-hot *columns*: when its pickle predates a city being
+        # added, that column simply does not exist, so predict() silently prices
+        # the market as the dropped baseline city instead of failing. A stale
+        # model.pkl that way returned Mumbai-like prices for Gurgaon.
+        fair = self.fair_value_lakhs(
+            city=city, area_sqft=area_sqft, bedrooms=bedrooms, bathrooms=bathrooms,
+            age_years=age_years, parking=parking, floor=floor,
+            furnished_code=furnished_code,
+        )
+        if fair is not None:
+            return round(max(10.0, fair), 2)
+
         if self.artifacts:
             try:
                 feature_names = self.artifacts["feature_names"]
                 scaler = self.artifacts["scaler"]
                 model = self.artifacts["model"]
+
+                # Refuse the forest when it has no column for this city, for the
+                # reason above — a wrong number is worse than the formula.
+                known_cities = [f for f in feature_names if f.startswith("city_")]
+                if known_cities and f"city_{city}" not in feature_names:
+                    raise ValueError(
+                        f"model.pkl has no column for {city} — retrain with "
+                        f"`python train.py --regenerate`"
+                    )
 
                 input_dict = {f: 0 for f in feature_names}
 

@@ -49,6 +49,12 @@ function project(p, { withMedia = false } = {}) {
     isFeatured: p.isFeatured,
     predicted_price_5y: p.predicted_price_5y,
     nearby_facilities: p.nearby_facilities,
+    // Both are inputs to the trained valuation model, so the recommendation
+    // route needs them present to value a listing on its real attributes
+    // rather than on the defaults. They stay out of `base` because LLM tool
+    // calls never reason over them.
+    parking: p.parking,
+    floor: p.floor,
   };
 }
 
@@ -143,12 +149,11 @@ async function getPropertyDetails(propertyId) {
   return {
     found: true,
     property: {
+      // floor and parking now come from the withMedia projection.
       ...project(found, { withMedia: true }),
       address: found.address,
       amenities: found.amenities,
       total_floors: found.total_floors,
-      floor: found.floor,
-      parking: found.parking,
     },
   };
 }

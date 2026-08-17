@@ -1,0 +1,49 @@
+{
+  "_comment": "GENERATED FILE \u2014 do not edit by hand. Rewritten by ml-service/train.py; run `python train.py --regenerate` to update. Ridge regression on log(price_lakhs); predict with exp(intercept + sum(w_i * x_i) + city_weight).",
+  "target": "log_price_lakhs",
+  "intercept": -1.5447957079153225,
+  "numeric_weights": {
+    "log_area": 0.8641092745366001,
+    "bedrooms": 0.0031019655408653594,
+    "bathrooms": 0.003084092989408045,
+    "age_years": -0.015983287358097176,
+    "parking": 0.042026269373004,
+    "floor": 0.005463545649927258,
+    "furnished_code": 0.0496398838991566,
+    "crime_score": -0.004789717204533393,
+    "school_dist_m": -1.2563427272159497e-05,
+    "hospital_dist_m": -1.1555108642182897e-06,
+    "metro_dist_m": -9.911206398935104e-06
+  },
+  "city_weights": {
+    "Ahmedabad": -0.2400818538300643,
+    "Bengaluru": 0.32334649634597856,
+    "Bhopal": -0.4172795636285185,
+    "Chandigarh": 0.034837038026933574,
+    "Chennai": 0.21837513764779626,
+    "Coimbatore": -0.1706556691673707,
+    "Delhi": 0.5773948608390705,
+    "Gurgaon": 0.39072240065178926,
+    "Hyderabad": 0.05109138253503081,
+    "Indore": -0.283946169447443,
+    "Jaipur": -0.30210048618811514,
+    "Kochi": -0.04019159139306031,
+    "Kolkata": -0.15202481181803829,
+    "Lucknow": -0.36296037061585645,
+    "Mumbai": 1.0905724676764093,
+    "Nagpur": -0.3736069648734866,
+    "Noida": 0.0006685283780312826,
+    "Pune": 0.13716138239235512,
+    "Surat": -0.29079103974468934,
+    "Visakhapatnam": -0.23147600940883278
+  },
+  "metrics": {
+    "valuation_r2": 0.8221,
+    "valuation_mae_lakhs": 22.39,
+    "valuation_median_ape_pct": 18.61,
+    "forest_r2": 0.7929,
+    "forest_rmse_lakhs": 36.78,
+    "training_rows": 10000,
+    "cities": 20
+  }
+}
