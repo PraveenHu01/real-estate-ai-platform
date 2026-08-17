@@ -1,39 +1,40 @@
 import React, { useContext } from 'react';
 import { ThemeContext, THEMES } from '../context/ThemeContext';
-import { Moon, Circle, Sun } from 'lucide-react';
+import { Moon, Sparkles } from 'lucide-react';
 
 export default function ThemeToggle({ className = "" }) {
-  const { theme, setTheme, cycleTheme } = useContext(ThemeContext);
-
-  const options = [
-    { id: THEMES.DARK, label: 'Dark', icon: Moon, desc: 'Slate Blue Dark' },
-    { id: THEMES.BLACK, label: 'Black', icon: Circle, desc: 'OLED Pitch Black' },
-    { id: THEMES.WHITE, label: 'White', icon: Sun, desc: 'Crisp Clean Light' },
-  ];
+  const { theme, toggleTheme, isBlack } = useContext(ThemeContext);
 
   return (
-    <div className={`inline-flex items-center p-1 rounded-xl bg-slate-900/80 border border-slate-800 theme-toggle-container ${className}`}>
-      {options.map((opt) => {
-        const Icon = opt.icon;
-        const isActive = theme === opt.id;
-        return (
-          <button
-            key={opt.id}
-            onClick={() => setTheme(opt.id)}
-            title={`Switch to ${opt.label} Mode (${opt.desc})`}
-            aria-label={`Switch to ${opt.label} Mode`}
-            aria-pressed={isActive}
-            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 ${
-              isActive
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Icon className={`w-3.5 h-3.5 ${opt.id === THEMES.BLACK ? 'fill-current' : ''}`} />
-            <span className="hidden sm:inline">{opt.label}</span>
-          </button>
-        );
-      })}
-    </div>
+    <button
+      onClick={toggleTheme}
+      type="button"
+      title={isBlack ? "Switch to Slate Dark Mode" : "Switch to OLED Black Mode"}
+      aria-label={isBlack ? "Switch to Slate Dark Mode" : "Switch to OLED Black Mode"}
+      className={`relative inline-flex items-center space-x-2 px-3 py-2 rounded-xl border transition-all duration-200 group ${
+        isBlack
+          ? 'bg-neutral-900 border-neutral-700 text-white hover:border-neutral-500 shadow-sm'
+          : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 shadow-sm'
+      } ${className}`}
+    >
+      <div className="relative flex items-center justify-center">
+        {isBlack ? (
+          <Sparkles className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+        ) : (
+          <Moon className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+        )}
+      </div>
+
+      <span className="text-xs font-semibold tracking-wide">
+        {isBlack ? 'OLED Black' : 'Slate Dark'}
+      </span>
+
+      {/* Mini indicator pill */}
+      <span
+        className={`w-2 h-2 rounded-full transition-colors ${
+          isBlack ? 'bg-purple-500 ring-2 ring-purple-400/30' : 'bg-blue-500 ring-2 ring-blue-400/30'
+        }`}
+      />
+    </button>
   );
 }

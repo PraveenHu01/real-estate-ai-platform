@@ -21,15 +21,6 @@
     --text-muted: #a1a1aa;
   }
 
-  [data-theme="white"] {
-    --bg-main: #f8fafc;
-    --bg-card: #ffffff;
-    --bg-nav: rgba(255, 255, 255, 0.92);
-    --border-main: #e2e8f0;
-    --text-main: #0f172a;
-    --text-muted: #475569;
-  }
-
   body {
     font-family: 'Inter', sans-serif;
     background-color: var(--bg-main);
@@ -48,10 +39,6 @@
     transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
   }
 
-  [data-theme="white"] .glass-card {
-    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
-  }
-
   .glass-nav {
     background: var(--bg-nav);
     backdrop-filter: blur(16px);
@@ -59,52 +46,6 @@
     border-bottom: 1px solid var(--border-main);
     transition: background-color 0.25s ease, border-color 0.25s ease;
   }
-}
-
-/* White Theme Specific Component Overrides */
-[data-theme="white"] .bg-slate-950,
-[data-theme="white"] .bg-slate-900,
-[data-theme="white"] .bg-slate-900\/80,
-[data-theme="white"] .bg-slate-900\/90 {
-  background-color: #f1f5f9;
-  border-color: #e2e8f0;
-}
-
-[data-theme="white"] .bg-slate-800,
-[data-theme="white"] .bg-slate-800\/60 {
-  background-color: #e2e8f0;
-  color: #1e293b;
-}
-
-[data-theme="white"] .text-white {
-  color: #0f172a;
-}
-
-[data-theme="white"] .text-slate-300,
-[data-theme="white"] .text-slate-400 {
-  color: #475569;
-}
-
-[data-theme="white"] .text-slate-200 {
-  color: #1e293b;
-}
-
-[data-theme="white"] .border-slate-800,
-[data-theme="white"] .border-slate-700 {
-  border-color: #e2e8f0;
-}
-
-[data-theme="white"] input,
-[data-theme="white"] select,
-[data-theme="white"] textarea {
-  background-color: #ffffff;
-  color: #0f172a;
-  border-color: #cbd5e1;
-}
-
-[data-theme="white"] input::placeholder,
-[data-theme="white"] textarea::placeholder {
-  color: #94a3b8;
 }
 
 /* Black Theme Specific Component Overrides */
@@ -147,10 +88,6 @@
   scrollbar-color: #334155 #0f172a;
 }
 
-[data-theme="white"] * {
-  scrollbar-color: #cbd5e1 #f8fafc;
-}
-
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -163,10 +100,6 @@
 ::-webkit-scrollbar-thumb {
   background: #334155;
   border-radius: 4px;
-}
-
-[data-theme="white"] ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
 }
 
 ::-webkit-scrollbar-thumb:hover {
