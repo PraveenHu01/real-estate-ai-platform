@@ -1,0 +1,13 @@
+{
+  "name": "real-estate-desktop",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Temporary Electron shell for running the platform as a local desktop app. Not deployed and not committed — see .git/info/exclude.",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^38.0.0"
+  }
+}

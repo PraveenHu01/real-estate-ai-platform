@@ -96,24 +96,35 @@ const CITIES = {
   },
 };
 
-const IMAGES = [
-  'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1567496898669-ee935f5f647a?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1536376072261-38c91010655c?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1560185007-cde436f6a4d0?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=800&q=80',
+const VILLA_IMAGES = [
+  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=1200&q=80',
+];
+
+const APARTMENT_IMAGES = [
+  'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1567496898669-ee935f5f647a?auto=format&fit=crop&w=1200&q=80',
+];
+
+const LUXURY_INTERIOR_IMAGES = [
+  'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1536376072261-38c91010655c?auto=format&fit=crop&w=1200&q=80',
+];
+
+const AI_FALLBACK_IMAGES = [
+  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
 ];
 
 const BASE_AMENITIES = ['Elevator', 'Security Guard', 'Power Backup', 'Covered Parking', 'Water Supply', 'Intercom'];
@@ -274,8 +285,20 @@ function generateCatalogue({ perCity = 18, seed = 20260806, startIdx = 200 } = {
       const nDocs = intBetween(rng, 1, 3);
       const documents = [...new Set(Array.from({ length: nDocs }, () => pick(rng, DOCUMENTS)))];
 
-      const nImages = intBetween(rng, 1, 3);
-      const images = [...new Set(Array.from({ length: nImages }, () => pick(rng, IMAGES)))];
+      // Curate real images matching the property type & tier
+      let pool = APARTMENT_IMAGES;
+      if (bedrooms >= 4 || tier === 2) {
+        pool = VILLA_IMAGES;
+      }
+      const primaryImg = pick(rng, pool);
+      const interiorImg = pick(rng, LUXURY_INTERIOR_IMAGES);
+      const images = [primaryImg, interiorImg];
+
+      const fullAddress = `${locality}, ${city}, ${info.state}`;
+      const latVal = Math.round((info.lat + between(rng, -0.075, 0.075)) * 10000) / 10000;
+      const lngVal = Math.round((info.lng + between(rng, -0.075, 0.075)) * 10000) / 10000;
+
+      const ai_image_caption = `AI Visual Insights: ${bedrooms}BHK ${furnished} ${bedrooms >= 4 ? 'villa' : 'apartment'} in ${locality}, ${city} with premium layout, ample natural daylight, and strategic transit access.`;
 
       idx += 1;
       out.push({
@@ -285,10 +308,12 @@ function generateCatalogue({ perCity = 18, seed = 20260806, startIdx = 200 } = {
         description: descriptionFor(bedrooms, locality, city, tier),
         city,
         location: locality,
-        address: `${locality}, ${city}, ${info.state}`,
-        // Offset from the city centre so map pins spread out plausibly.
-        lat: Math.round((info.lat + between(rng, -0.075, 0.075)) * 10000) / 10000,
-        lng: Math.round((info.lng + between(rng, -0.075, 0.075)) * 10000) / 10000,
+        address: fullAddress,
+        lat: latVal,
+        lng: lngVal,
+        google_maps_url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`,
+        image_type: 'real',
+        ai_image_caption,
         price_lakhs,
         area_sqft,
         bedrooms,

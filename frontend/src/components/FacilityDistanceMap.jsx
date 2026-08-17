@@ -31,18 +31,30 @@ export default function FacilityDistanceMap({ lat = 23.2333, lng = 77.4343, titl
     { type: 'Shopping Mall', name: 'DB City / Phoenix Mall', dist: facilities.mall_dist_m || 1500, icon: ShoppingBag, color: 'text-amber-400', lat: lat - 0.006, lng: lng - 0.006, markerIcon: mallIcon },
   ];
 
+  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
   return (
     <div className="glass-card rounded-2xl p-6 space-y-6">
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
             <Navigation className="w-5 h-5" />
           </div>
           <div>
             <h3 className="text-lg font-bold text-white">Interactive Location & Facility Radius</h3>
-            <p className="text-xs text-slate-400">Calculated distances to nearby schools, metro, & emergency centers</p>
+            <p className="text-xs text-slate-400">GPS: {lat.toFixed(4)}, {lng.toFixed(4)} · Calculated facility radius</p>
           </div>
         </div>
+
+        <a
+          href={googleMapsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-400 hover:text-blue-300 font-semibold text-xs transition"
+        >
+          <MapPin className="w-3.5 h-3.5" />
+          <span>Open in Google Maps</span>
+        </a>
       </div>
 
       {/* Map Display */}

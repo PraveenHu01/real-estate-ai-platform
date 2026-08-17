@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
+    "desktop": "cd desktop && npm start",
     "install:all": "npm install --omit=dev && cd backend && npm install --omit=dev && cd ../frontend && npm install --include=dev",
     "build": "cd frontend && npm run build",
     "db:migrate": "cd backend && npm run db:migrate",

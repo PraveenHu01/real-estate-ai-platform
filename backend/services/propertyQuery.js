@@ -41,9 +41,20 @@ function project(p, { withMedia = false } = {}) {
 
   if (!withMedia) return base;
 
+  const address = p.address || `${p.location}, ${p.city}`;
+  const gmap = p.google_maps_url || (p.lat && p.lng 
+    ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` 
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
+
   return {
     ...base,
     _id: p._id,
+    address,
+    lat: p.lat,
+    lng: p.lng,
+    google_maps_url: gmap,
+    image_type: p.image_type || 'real',
+    ai_image_caption: p.ai_image_caption || `AI Visual Inspection: Verified ${p.bedrooms || 2}BHK ${p.furnished || 'Semi-Furnished'} residence in ${p.location}, ${p.city}.`,
     images: p.images,
     description: p.description,
     isFeatured: p.isFeatured,

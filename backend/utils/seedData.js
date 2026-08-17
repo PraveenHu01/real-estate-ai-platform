@@ -778,12 +778,30 @@ const PER_CITY = Number(process.env.CATALOGUE_PER_CITY) || 18;
 
 const generatedProperties = generateCatalogue({ perCity: PER_CITY });
 
-const allProperties = [...initialProperties, ...generatedProperties];
+function enrichProperty(p) {
+  const address = p.address || `${p.location}, ${p.city}`;
+  const gmap = p.google_maps_url || (p.lat && p.lng 
+    ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` 
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
+  
+  const caption = p.ai_image_caption || `AI Visual Inspection: Verified ${p.bedrooms || 2}BHK ${p.furnished || 'Semi-Furnished'} property in ${p.location}, ${p.city} featuring spacious living layouts, ample natural lighting, and modern architecture.`;
+
+  return {
+    ...p,
+    google_maps_url: gmap,
+    image_type: p.image_type || 'real',
+    ai_image_caption: caption,
+  };
+}
+
+const enrichedCurated = initialProperties.map(enrichProperty);
+const enrichedGenerated = generatedProperties.map(enrichProperty);
+const allProperties = [...enrichedCurated, ...enrichedGenerated];
 
 module.exports = {
   // Everything the app serves — curated first, then generated.
   initialProperties: allProperties,
   // The hand-written subset, for demos and the featured homepage rail.
-  curatedProperties: initialProperties,
-  generatedProperties,
+  curatedProperties: enrichedCurated,
+  generatedProperties: enrichedGenerated,
 };

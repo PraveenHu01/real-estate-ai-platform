@@ -98,12 +98,33 @@ function modelledSuggestions({ city, budget_lakhs, bedrooms, preferred_locality,
     const hospital_dist_m = 400 + (i % 4) * 320;
     const metro_dist_m = 500 + (i % 6) * 480;
     const nearby_facilities = { school_dist_m, hospital_dist_m, metro_dist_m };
+    const fullAddress = `${locality}, ${city}`;
+    const latVal = profile.lat || 20.5937;
+    const lngVal = profile.lng || 78.9629;
+    const ai_image_caption = `AI Architectural Concept: Modern ${bhk}BHK layout in ${locality}, ${city} designed with open living space, floor-to-ceiling glass, and energy-efficient lighting.`;
+
+    const modelImages = bhk >= 3 
+      ? [
+          'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+          'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
+        ]
+      : [
+          'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
+          'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80',
+        ];
 
     return {
       id: `model-${city.toLowerCase().replace(/\s+/g, '-')}-${i + 1}`,
       title: `${bhk} BHK in ${locality}`,
       city,
       location: locality,
+      address: fullAddress,
+      lat: latVal,
+      lng: lngVal,
+      google_maps_url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`,
+      image_type: 'ai_rendered',
+      ai_image_caption,
+      images: modelImages,
       price_lakhs,
       area_sqft,
       price_per_sqft: Math.round((price_lakhs * 100000) / area_sqft),

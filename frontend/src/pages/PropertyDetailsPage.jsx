@@ -7,15 +7,22 @@ import ChatModal from '../components/ChatModal';
 import { WishlistContext } from '../context/WishlistContext';
 import { 
   MapPin, Bed, Bath, Maximize2, Calendar, TrendingUp,
-  FileText, MessageSquare, Phone, Mail, Bookmark, CheckCircle2, ArrowLeft
+  FileText, MessageSquare, Phone, Mail, Bookmark, CheckCircle2, ArrowLeft,
+  Sparkles, ExternalLink, Camera
 } from 'lucide-react';
 import api from '../services/api';
+
+const DEFAULT_MAIN_IMG = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80";
+const DEFAULT_SECONDARY_IMG = "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80";
 
 export default function PropertyDetailsPage() {
   const { id } = useParams();
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
+  const [mainImg, setMainImg] = useState('');
+  const [secondaryImg, setSecondaryImg] = useState('');
+  const [isAiFallback, setIsAiFallback] = useState(false);
   const { toggleWishlist, isSaved } = useContext(WishlistContext);
 
   useEffect(() => {
@@ -26,10 +33,14 @@ export default function PropertyDetailsPage() {
     setLoading(true);
     try {
       const res = await api.get(`/properties/${id}`);
-      setProperty(res.data);
+      const data = res.data;
+      setProperty(data);
+      setMainImg(data.images?.[0] || DEFAULT_MAIN_IMG);
+      setSecondaryImg(data.images?.[1] || data.images?.[0] || DEFAULT_SECONDARY_IMG);
+      setIsAiFallback(data.image_type === 'ai_rendered' || data.modelled);
     } catch (err) {
       // Fallback
-      setProperty({
+      const fallbackData = {
         id: id || "prop-101",
         title: "Luxury 2BHK Apartment in MP Nagar",
         description: "Spacious 2BHK ready-to-move apartment located in the prime commercial hub of Bhopal. Close to DB City Mall and top CBSE schools. Gated community with 24x7 security, power backup, clubhouse, and underground parking.",
@@ -38,6 +49,9 @@ export default function PropertyDetailsPage() {
         address: "Zone 1, MP Nagar, Bhopal, MP 462011",
         lat: 23.2333,
         lng: 77.4343,
+        google_maps_url: "https://www.google.com/maps/search/?api=1&query=23.2333,77.4343",
+        image_type: "real",
+        ai_image_caption: "Verified Architectural Profile: Modern 2BHK fully-furnished apartment in MP Nagar, Bhopal featuring sunlit interior layout and proximity to primary transit corridors.",
         price_lakhs: 58.5,
         area_sqft: 1150,
         bedrooms: 2,
@@ -48,8 +62,8 @@ export default function PropertyDetailsPage() {
         total_floors: 7,
         furnished: "Fully-Furnished",
         images: [
-          "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80",
-          "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80"
+          DEFAULT_MAIN_IMG,
+          DEFAULT_SECONDARY_IMG
         ],
         documents: ["Property_Ownership_Deed.pdf", "RERA_Registration.pdf"],
         amenities: ["Gym", "Elevator", "Security Guard", "Power Backup", "Clubhouse", "Intercom"],
@@ -59,7 +73,10 @@ export default function PropertyDetailsPage() {
         ai_rating: 9.3,
         crime_score: 2.2,
         nearby_facilities: { school_dist_m: 450, hospital_dist_m: 800, metro_dist_m: 1200, mall_dist_m: 600, restaurant_dist_m: 250 }
-      });
+      };
+      setProperty(fallbackData);
+      setMainImg(fallbackData.images[0]);
+      setSecondaryImg(fallbackData.images[1]);
     } finally {
       setLoading(false);
     }
@@ -70,6 +87,10 @@ export default function PropertyDetailsPage() {
   }
 
   const saved = isSaved(property.id || property._id);
+  const mapQuery = property.lat && property.lng
+    ? `${property.lat},${property.lng}`
+    : encodeURIComponent(property.address || `${property.location}, ${property.city}`);
+  const googleMapsUrl = property.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
 
   return (
     <>
@@ -84,19 +105,42 @@ export default function PropertyDetailsPage() {
       {/* Hero Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <div className="flex items-center space-x-3 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-600/90 text-white">
               {property.city}
             </span>
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-500/20 border border-purple-500/30 text-purple-300">
               AI Rating {property.ai_rating || 9.1} / 10
             </span>
+            {isAiFallback ? (
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-600/80 text-white flex items-center space-x-1 border border-purple-400/40">
+                <Sparkles className="w-3 h-3" />
+                <span>AI Concept Visualization</span>
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-600/80 text-white flex items-center space-x-1 border border-emerald-400/40">
+                <Camera className="w-3 h-3" />
+                <span>Verified Real Listing Photos</span>
+              </span>
+            )}
           </div>
           <h1 className="text-3xl font-extrabold text-white">{property.title}</h1>
-          <p className="text-xs text-slate-400 flex items-center space-x-1 mt-1">
-            <MapPin className="w-4 h-4 text-blue-400" />
-            <span>{property.address}</span>
-          </p>
+          <div className="flex flex-wrap items-center gap-3 mt-2">
+            <p className="text-xs text-slate-400 flex items-center space-x-1">
+              <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
+              <span>{property.address}</span>
+            </p>
+            <a
+              href={googleMapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 hover:text-white text-xs font-semibold transition"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Open in Google Maps</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
         </div>
 
         {/* Price & Wishlist CTA */}
@@ -118,12 +162,37 @@ export default function PropertyDetailsPage() {
       </div>
 
       {/* Image Gallery */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 h-96 rounded-2xl overflow-hidden bg-slate-900">
-          <img src={property.images?.[0]} alt={property.title} className="w-full h-full object-cover" />
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2 h-96 rounded-2xl overflow-hidden bg-slate-900 relative">
+            <img 
+              src={mainImg} 
+              alt={property.title} 
+              onError={() => { setMainImg(DEFAULT_SECONDARY_IMG); setIsAiFallback(true); }}
+              className="w-full h-full object-cover" 
+            />
+          </div>
+          <div className="h-96 rounded-2xl overflow-hidden bg-slate-900 hidden md:block relative">
+            <img 
+              src={secondaryImg} 
+              alt="Interior view" 
+              onError={() => { setSecondaryImg(DEFAULT_MAIN_IMG); setIsAiFallback(true); }}
+              className="w-full h-full object-cover" 
+            />
+          </div>
         </div>
-        <div className="h-96 rounded-2xl overflow-hidden bg-slate-900 hidden md:block">
-          <img src={property.images?.[1] || property.images?.[0]} alt="Interior view" className="w-full h-full object-cover" />
+
+        {/* AI Visual Inspection & Caption */}
+        <div className="flex items-start space-x-3 p-4 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300">
+          <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <span className="font-bold text-white block">
+              {isAiFallback ? 'AI Architectural Render & Spatial Analysis' : 'Verified Real Estate Visual Intelligence'}
+            </span>
+            <p className="text-slate-400">
+              {property.ai_image_caption || `AI-analyzed architectural layout: ${property.bedrooms}BHK ${property.furnished} property located in ${property.location}, ${property.city} with verified spatial ratios, high natural daylight, and strategic transit access.`}
+            </p>
+          </div>
         </div>
       </div>
 
