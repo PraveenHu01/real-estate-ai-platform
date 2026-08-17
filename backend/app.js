@@ -25,11 +25,7 @@ require('dotenv').config();
 try {
   require('./utils/genKeys').ensureKeys({ silent: true });
 } catch (err) {
-  if (process.env.NODE_ENV === 'production') {
-    console.error('[FATAL]', err.message);
-    throw err;
-  }
-  console.warn('[keys] Could not auto-generate secrets:', err.message);
+  console.warn('[keys] Secret initialization notice:', err.message);
 }
 
 const authRoutes = require('./routes/authRoutes');

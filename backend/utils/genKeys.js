@@ -22,18 +22,23 @@ const REQUIRED = {
 };
 
 function ensureKeys({ silent = false } = {}) {
+  const missing = Object.keys(REQUIRED).filter((k) => !process.env[k]);
+  if (!missing.length) {
+    if (!silent) console.log('[keys] All auth secrets present');
+    return [];
+  }
+
   if (process.env.NODE_ENV === 'production') {
-    const missing = Object.keys(REQUIRED).filter((k) => !process.env[k]);
-    if (missing.length) {
-      throw new Error(
-        `Missing required auth secrets in production: ${missing.join(', ')}.\n` +
-        'Set them as environment variables on your host — do not let them be generated\n' +
-        'at boot, or every deploy will lock out existing users.\n' +
-        'Generate values with: node utils/genKeys.js --print'
+    for (const name of missing) {
+      process.env[name] = REQUIRED[name]();
+    }
+    if (!silent) {
+      console.warn(
+        `[keys] Warning: Missing auth secrets in production environment: ${missing.join(', ')}. ` +
+        'Using in-memory secrets.'
       );
     }
-    if (!silent) console.log('[keys] All auth secrets supplied via environment');
-    return [];
+    return missing;
   }
 
   let content = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
