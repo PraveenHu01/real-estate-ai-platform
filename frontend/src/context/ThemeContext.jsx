@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useRef } from 'react';
 
 export const ThemeContext = createContext();
 
@@ -7,18 +7,36 @@ export const THEMES = {
   DARK: 'dark',
 };
 
+const TRANSITION_MS = 240;
+
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('real_estate_theme');
     if (saved === 'dark' || saved === 'black') return THEMES.DARK;
-    return THEMES.WHITE; // Default clean white theme
+    return THEMES.WHITE;
   });
+
+  const paintedTheme = useRef(null);
+  const transitionTimer = useRef(null);
 
   useEffect(() => {
     const root = document.documentElement;
     const body = document.body;
 
-    // Remove legacy / previous classes
+    // Apply targeted transition class for non-view-transition fallback
+    if (paintedTheme.current !== null && paintedTheme.current !== theme) {
+      if (!('startViewTransition' in document)) {
+        clearTimeout(transitionTimer.current);
+        root.classList.add('theme-transition');
+        transitionTimer.current = setTimeout(() => {
+          root.classList.remove('theme-transition');
+          transitionTimer.current = null;
+        }, TRANSITION_MS);
+      }
+    }
+    paintedTheme.current = theme;
+
+    // Clean legacy / previous classes
     root.classList.remove('theme-dark', 'theme-black', 'theme-white', 'light', 'dark');
     body.classList.remove('theme-dark', 'theme-black', 'theme-white', 'light', 'dark');
 
@@ -34,11 +52,23 @@ export const ThemeProvider = ({ children }) => {
       body.classList.add('theme-dark', 'dark');
     }
 
+    root.style.colorScheme = theme === THEMES.WHITE ? 'light' : 'dark';
     localStorage.setItem('real_estate_theme', theme);
   }, [theme]);
 
+  useEffect(() => () => clearTimeout(transitionTimer.current), []);
+
   const toggleTheme = () => {
-    setTheme((prev) => (prev === THEMES.WHITE ? THEMES.DARK : THEMES.WHITE));
+    const nextTheme = theme === THEMES.WHITE ? THEMES.DARK : THEMES.WHITE;
+
+    // Native hardware-accelerated View Transition API for instant, buttery-smooth 60/120fps crossfade
+    if (typeof document !== 'undefined' && 'startViewTransition' in document) {
+      document.startViewTransition(() => {
+        setTheme(nextTheme);
+      });
+    } else {
+      setTheme(nextTheme);
+    }
   };
 
   return (

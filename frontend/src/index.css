@@ -53,43 +53,58 @@
 }
 
 /* ==========================================================================
-   THEME SWITCH TRANSITION
-
-   The overrides further down this file repaint hundreds of Tailwind utility
-   classes on a theme change — backgrounds, borders, text, inputs, dividers.
-   None of them carry a transition of their own, so a toggle used to snap them
-   instantly while body/.glass-card eased over 250ms. Two speeds inside one
-   switch is what read as a flicker; this makes the whole tree move together.
-
-   Scoped to the swap instead of left on permanently: a standing `* {
-   transition }` would stretch every hover and focus change to the theme
-   duration and keep the compositor watching the entire tree for the life of
-   the page. ThemeProvider adds .theme-transition to <html>, then drops it once
-   the swap has played.
+   VIEW TRANSITIONS API (GPU ACCELERATED 60/120FPS ZERO-LAG FADING)
    ========================================================================== */
-html.theme-transition,
-html.theme-transition *,
-html.theme-transition *::before,
-html.theme-transition *::after {
-  transition-property: background-color, border-color, color, fill, stroke, box-shadow, outline-color !important;
-  transition-duration: var(--theme-transition-duration) !important;
-  transition-timing-function: var(--theme-transition-ease) !important;
-  transition-delay: 0s !important;
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Leaflet drives pan/zoom through transform and fades tiles in through
-   opacity. Easing those would make the map drift or ghost whenever a switch
-   lands mid-interaction, so the map keeps its own timing. */
-html.theme-transition .leaflet-container,
-html.theme-transition .leaflet-container * {
-  transition: none !important;
+::view-transition-old(root) {
+  animation-name: theme-fade-out;
+}
+
+::view-transition-new(root) {
+  animation-name: theme-fade-in;
+}
+
+@keyframes theme-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes theme-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Fallback for browsers without View Transitions */
+html.theme-transition body,
+html.theme-transition header,
+html.theme-transition nav,
+html.theme-transition main,
+html.theme-transition footer,
+html.theme-transition section,
+html.theme-transition article,
+html.theme-transition .glass-card,
+html.theme-transition .glass-nav,
+html.theme-transition input,
+html.theme-transition select,
+html.theme-transition textarea,
+html.theme-transition button {
+  transition: background-color 220ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 220ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 220ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 220ms cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html.theme-transition,
-  html.theme-transition *,
-  html.theme-transition *::before,
-  html.theme-transition *::after {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0s !important;
+  }
+  html.theme-transition * {
     transition-duration: 0s !important;
   }
 }
