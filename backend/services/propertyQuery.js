@@ -219,6 +219,13 @@ async function listCities() {
     .sort((a, b) => b[1] - a[1])
     .map(([name, listings]) => ({ city: name, listings, modelled: false }));
 
+  const modelledOnly = listProfileCities()
+    .filter((name) => !counts[name])
+    .map((name) => ({ city: name, listings: 0, modelled: true }));
+
+  return { cities: [...withListings, ...modelledOnly] };
+}
+
 async function listLocalities(city) {
   const { cityLocalities, CITY_PROFILES } = require('../utils/cityProfiles');
   const all = await loadAll();
