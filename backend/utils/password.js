@@ -10,7 +10,7 @@ const ARGON2_OPTS = {
   parallelism: 1,
 };
 
-const MIN_LENGTH = 12;
+const MIN_LENGTH = 8;
 
 async function hashPassword(password) {
   return argon2.hash(String(password), ARGON2_OPTS);
@@ -39,7 +39,7 @@ function checkPolicy(password) {
 
   let score = 0;
   if (pw.length >= MIN_LENGTH) score++;
-  if (pw.length >= 16) score++;
+  if (pw.length >= 12) score++;
   if (/[a-z]/.test(pw) && /[A-Z]/.test(pw) && /[0-9]/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
 

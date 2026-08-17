@@ -7,7 +7,7 @@ import { Check, X } from 'lucide-react';
  * authoritative; this is UX feedback only.
  */
 const RULES = [
-  { label: 'At least 12 characters', test: (p) => p.length >= 12 },
+  { label: 'At least 8 characters', test: (p) => p.length >= 8 },
   { label: 'A lowercase letter', test: (p) => /[a-z]/.test(p) },
   { label: 'An uppercase letter', test: (p) => /[A-Z]/.test(p) },
   { label: 'A number', test: (p) => /[0-9]/.test(p) },
@@ -22,8 +22,8 @@ const TEXT_COLORS = ['text-red-400', 'text-orange-400', 'text-amber-400', 'text-
 function scoreOf(pw) {
   if (!pw) return 0;
   let s = 0;
+  if (pw.length >= 8) s++;
   if (pw.length >= 12) s++;
-  if (pw.length >= 16) s++;
   if (/[a-z]/.test(pw) && /[A-Z]/.test(pw) && /[0-9]/.test(pw)) s++;
   if (/[^A-Za-z0-9]/.test(pw)) s++;
   return Math.min(s, 4);

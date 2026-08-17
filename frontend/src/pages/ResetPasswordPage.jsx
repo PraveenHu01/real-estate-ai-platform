@@ -93,7 +93,7 @@ export default function ResetPasswordPage() {
               <Lock className="w-4 h-4 text-slate-400 shrink-0" />
               <input type={showPw ? 'text' : 'password'} required autoComplete="new-password"
                 value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 12 characters"
+                placeholder="At least 8 characters"
                 className="bg-transparent text-white w-full focus:outline-none" />
               <button type="button" onClick={() => setShowPw(v => !v)}
                 aria-label={showPw ? 'Hide password' : 'Show password'}

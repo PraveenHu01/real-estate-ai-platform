@@ -120,7 +120,7 @@ export default function RegisterPage() {
             <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 focus-within:border-blue-500 transition">
               <Lock className="w-4 h-4 text-slate-400 shrink-0" />
               <input type={showPw ? 'text' : 'password'} required value={form.password} onChange={set('password')}
-                placeholder="At least 12 characters" autoComplete="new-password"
+                placeholder="At least 8 characters" autoComplete="new-password"
                 className="bg-transparent text-white w-full focus:outline-none" />
               <button type="button" onClick={() => setShowPw(v => !v)}
                 aria-label={showPw ? 'Hide password' : 'Show password'}
