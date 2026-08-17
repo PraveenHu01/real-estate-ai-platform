@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { WishlistProvider } from './context/WishlistContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -30,11 +31,12 @@ import MfaSetupPage from './pages/MfaSetupPage';
 
 export default function App() {
   return (
-    <AuthProvider>
-      <WishlistProvider>
-        <Router>
-          <div className="min-h-screen bg-slate-950 flex flex-col">
-            <Navbar />
+    <ThemeProvider>
+      <AuthProvider>
+        <WishlistProvider>
+          <Router>
+            <div className="min-h-screen flex flex-col transition-colors duration-200">
+              <Navbar />
 
             <main className="flex-1">
               <Routes>
@@ -70,5 +72,6 @@ export default function App() {
         </Router>
       </WishlistProvider>
     </AuthProvider>
+    </ThemeProvider>
   );
 }

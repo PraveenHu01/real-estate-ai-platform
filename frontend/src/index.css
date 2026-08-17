@@ -3,28 +3,120 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --bg-main: #0b0f19;
+    --bg-card: rgba(15, 23, 42, 0.75);
+    --bg-nav: rgba(11, 15, 25, 0.85);
+    --border-main: rgba(255, 255, 255, 0.08);
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+  }
+
+  [data-theme="black"] {
+    --bg-main: #000000;
+    --bg-card: rgba(10, 10, 10, 0.90);
+    --bg-nav: rgba(0, 0, 0, 0.95);
+    --border-main: #222222;
+    --text-main: #ffffff;
+    --text-muted: #a1a1aa;
+  }
+
+  [data-theme="white"] {
+    --bg-main: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-nav: rgba(255, 255, 255, 0.92);
+    --border-main: #e2e8f0;
+    --text-main: #0f172a;
+    --text-muted: #475569;
+  }
+
   body {
     font-family: 'Inter', sans-serif;
-    background-color: #0b0f19;
-    color: #f1f5f9;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 }
 
 /* Glassmorphic surfaces */
 @layer components {
   .glass-card {
-    background: rgba(15, 23, 42, 0.75);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-card);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border-main);
+    transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  }
+
+  [data-theme="white"] .glass-card {
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
   }
 
   .glass-nav {
-    background: rgba(11, 15, 25, 0.85);
+    background: var(--bg-nav);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--border-main);
+    transition: background-color 0.25s ease, border-color 0.25s ease;
   }
+}
+
+/* White Theme Specific Component Overrides */
+[data-theme="white"] .bg-slate-950,
+[data-theme="white"] .bg-slate-900,
+[data-theme="white"] .bg-slate-900\/80,
+[data-theme="white"] .bg-slate-900\/90 {
+  background-color: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+[data-theme="white"] .bg-slate-800,
+[data-theme="white"] .bg-slate-800\/60 {
+  background-color: #e2e8f0;
+  color: #1e293b;
+}
+
+[data-theme="white"] .text-white {
+  color: #0f172a;
+}
+
+[data-theme="white"] .text-slate-300,
+[data-theme="white"] .text-slate-400 {
+  color: #475569;
+}
+
+[data-theme="white"] .text-slate-200 {
+  color: #1e293b;
+}
+
+[data-theme="white"] .border-slate-800,
+[data-theme="white"] .border-slate-700 {
+  border-color: #e2e8f0;
+}
+
+[data-theme="white"] input,
+[data-theme="white"] select,
+[data-theme="white"] textarea {
+  background-color: #ffffff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+[data-theme="white"] input::placeholder,
+[data-theme="white"] textarea::placeholder {
+  color: #94a3b8;
+}
+
+/* Black Theme Specific Component Overrides */
+[data-theme="black"] .bg-slate-950,
+[data-theme="black"] .bg-slate-900 {
+  background-color: #0a0a0a;
+  border-color: #1f1f1f;
+}
+
+[data-theme="black"] .border-slate-800,
+[data-theme="black"] .border-slate-700 {
+  border-color: #1f1f1f;
 }
 
 @layer utilities {
@@ -55,18 +147,26 @@
   scrollbar-color: #334155 #0f172a;
 }
 
+[data-theme="white"] * {
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: var(--bg-main);
 }
 
 ::-webkit-scrollbar-thumb {
   background: #334155;
   border-radius: 4px;
+}
+
+[data-theme="white"] ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
 }
 
 ::-webkit-scrollbar-thumb:hover {

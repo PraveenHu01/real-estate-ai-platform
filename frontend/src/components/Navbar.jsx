@@ -6,6 +6,7 @@ import {
   Building2, Sparkles, TrendingUp, Calculator, Bookmark, MessageSquare,
   ShieldCheck, BarChart3, PlusCircle, LogIn, LogOut, User, Menu, X
 } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 
 export default function Navbar() {
   const { user, logout } = useContext(AuthContext);
@@ -62,8 +63,10 @@ export default function Navbar() {
             </Link>
           </nav>
 
-          {/* Action Buttons & Auth */}
+          {/* Action Buttons, Theme Switcher & Auth */}
           <div className="hidden lg:flex items-center space-x-3">
+            <ThemeToggle />
+
             <Link to="/wishlist" title="Saved properties" aria-label="Saved properties" className="relative p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-300 hover:text-blue-400 transition">
               <Bookmark className={`w-5 h-5 ${wishlistIds.length > 0 ? 'fill-current text-blue-400' : ''}`} />
               {wishlistIds.length > 0 && (
@@ -130,6 +133,10 @@ export default function Navbar() {
       {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="lg:hidden glass-card border-t border-slate-800 px-4 pt-3 pb-6 space-y-2">
+          <div className="py-2 border-b border-slate-800 flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400">Theme Appearance</span>
+            <ThemeToggle />
+          </div>
           <Link to="/properties" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-medium text-slate-200">Properties</Link>
           <Link to="/ai-recommendations" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-medium text-blue-400">AI Recommendation</Link>
           <Link to="/price-predictor" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-medium text-emerald-400">Price Predictor ML</Link>
