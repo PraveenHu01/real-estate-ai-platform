@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PropertyCard from '../components/PropertyCard';
+import LocalitySuggest from '../components/LocalitySuggest';
 import { Sparkles, Compass, AlertCircle, Loader2, FlaskConical } from 'lucide-react';
 import api from '../services/api';
 
@@ -128,11 +129,11 @@ export default function AIRecommendationsPage() {
 
           <div>
             <label className="block text-slate-400 mb-1">Office / Work Hub Locality</label>
-            <input
-              type="text" value={officeLocality}
-              onChange={(e) => setOfficeLocality(e.target.value)}
-              placeholder="e.g. MP Nagar, Whitefield..."
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white"
+            <LocalitySuggest
+              city={preferredCity}
+              value={officeLocality}
+              onChange={setOfficeLocality}
+              placeholder="Select available area or type..."
             />
           </div>
 

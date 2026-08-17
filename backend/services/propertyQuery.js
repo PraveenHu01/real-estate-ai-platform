@@ -219,11 +219,47 @@ async function listCities() {
     .sort((a, b) => b[1] - a[1])
     .map(([name, listings]) => ({ city: name, listings, modelled: false }));
 
-  const modelledOnly = listProfileCities()
-    .filter((name) => !counts[name])
-    .map((name) => ({ city: name, listings: 0, modelled: true }));
+async function listLocalities(city) {
+  const { cityLocalities, CITY_PROFILES } = require('../utils/cityProfiles');
+  const all = await loadAll();
 
-  return { cities: [...withListings, ...modelledOnly] };
+  let targetProps = all;
+  if (city && city !== 'All') {
+    targetProps = all.filter((p) => p.city && p.city.toLowerCase() === city.toLowerCase());
+  }
+
+  const liveCounts = {};
+  for (const p of targetProps) {
+    if (p.location) {
+      liveCounts[p.location] = (liveCounts[p.location] || 0) + 1;
+    }
+  }
+
+  const knownSet = new Set();
+  const result = [];
+
+  // 1. Live catalogue localities
+  for (const [loc, count] of Object.entries(liveCounts)) {
+    knownSet.add(loc.toLowerCase());
+    result.push({ name: loc, count, isLive: true });
+  }
+
+  // 2. Add profile localities for selected city
+  if (city && city !== 'All') {
+    const profLocs = cityLocalities(city);
+    for (const loc of profLocs) {
+      if (!knownSet.has(loc.toLowerCase())) {
+        knownSet.add(loc.toLowerCase());
+        result.push({ name: loc, count: 0, isLive: false });
+      }
+    }
+  }
+
+  // Sort live first by count, then alphabetical
+  result.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  return { city: city || 'All', count: result.length, localities: result };
 }
 
-module.exports = { searchProperties, getPropertyDetails, getMarketStats, listCities, MAX_ROWS };
+module.exports = { searchProperties, getPropertyDetails, getMarketStats, listCities, listLocalities, MAX_ROWS };
+

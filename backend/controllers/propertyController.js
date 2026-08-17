@@ -78,6 +78,18 @@ exports.getCities = async (req, res) => {
   }
 };
 
+exports.getLocalities = async (req, res) => {
+  try {
+    const { city } = req.query;
+    const { listLocalities } = require('../services/propertyQuery');
+    const data = await listLocalities(city);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
 exports.getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
