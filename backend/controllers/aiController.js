@@ -21,7 +21,18 @@ const {
   investmentForecast,
   cityProfile,
   cityLocalities,
+  explainablePriceBreakdown,
+  rentalYieldAnalysis,
+  confidenceMetrics,
 } = require('../utils/cityProfiles');
+
+// Fast in-memory prediction cache (1-hour TTL)
+const PREDICTION_CACHE = new Map();
+const CACHE_TTL_MS = 60 * 60 * 1000;
+
+function getCacheKey(p) {
+  return `${p.city}:${p.location}:${p.area_sqft}:${p.bedrooms}:${p.bathrooms}:${p.age_years}:${p.parking}:${p.floor}:${p.furnished}`;
+}
 
 exports.predictPrice = async (req, res) => {
   try {
@@ -33,6 +44,7 @@ exports.predictPrice = async (req, res) => {
     const parking = Math.max(0, Math.min(10, Number(req.body.parking) || 1));
     const floor = Math.max(0, Math.min(120, Number(req.body.floor) || 3));
     const location = sanitizeString(String(req.body.location || 'City Centre'));
+    const furnished = sanitizeString(String(req.body.furnished || 'Semi-Furnished'));
 
     const sanitizedPayload = {
       city: rawCity,
@@ -43,8 +55,15 @@ exports.predictPrice = async (req, res) => {
       age_years,
       parking,
       floor,
-      furnished: sanitizeString(String(req.body.furnished || 'Semi-Furnished')),
+      furnished,
     };
+
+    // 1. Check in-memory cache
+    const cacheKey = getCacheKey(sanitizedPayload);
+    const cached = PREDICTION_CACHE.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return res.json({ ...cached.data, cached: true });
+    }
 
     let result;
     try {
@@ -66,7 +85,43 @@ exports.predictPrice = async (req, res) => {
       };
     }
 
-    // Security & audit observability
+    // 2. Attach Explainable Price Breakdown, Rental Yield, & Confidence Metrics
+    const priceLakhs = result.predicted_price_lakhs;
+    const priceBreakdown = explainablePriceBreakdown({
+      city: rawCity,
+      area_sqft,
+      bedrooms,
+      age_years,
+      parking,
+      floor,
+      furnished,
+    });
+    const rentalAnalysis = rentalYieldAnalysis({
+      current_price_lakhs: priceLakhs,
+      city: rawCity,
+      area_sqft,
+      bedrooms,
+    });
+    const confidence = confidenceMetrics({
+      city: rawCity,
+      predicted_price_lakhs: priceLakhs,
+    });
+
+    const fullResponse = {
+      ...result,
+      price_breakdown: priceBreakdown,
+      rental_yield_forecast: rentalAnalysis,
+      confidence_interval: confidence,
+    };
+
+    // 3. Cache response
+    PREDICTION_CACHE.set(cacheKey, { data: fullResponse, timestamp: Date.now() });
+    if (PREDICTION_CACHE.size > 2000) {
+      const firstKey = PREDICTION_CACHE.keys().next().value;
+      PREDICTION_CACHE.delete(firstKey);
+    }
+
+    // 4. Security & audit observability
     const ctx = reqContext(req);
     await logAuthEvent({
       userId: req.user?.id || null,
@@ -74,10 +129,10 @@ exports.predictPrice = async (req, res) => {
       ip: ctx.ip,
       userAgent: ctx.userAgent,
       success: true,
-      detail: `City: ${rawCity}, Area: ${area_sqft}sqft, Price: ₹${result.predicted_price_lakhs}L`,
+      detail: `City: ${rawCity}, Area: ${area_sqft}sqft, Price: ₹${priceLakhs}L`,
     });
 
-    return res.json(result);
+    return res.json(fullResponse);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
