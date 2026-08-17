@@ -30,6 +30,7 @@ ml-service/model.pkl
 ml-service/dataset.csv
 *.pkl
 *.joblib
+*.zip
 
 # === Logs ===
 *.log

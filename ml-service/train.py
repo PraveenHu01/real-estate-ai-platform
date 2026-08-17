@@ -235,14 +235,23 @@ CITIES_DATA = {
 }
 
 
+from ingest_zips import extract_real_datasets
+
 def generate_indian_real_estate_dataset(n_samples=25000):
+    # 1. Ingest real listings from Gurgaon, Hyderabad, Kolkata, Mumbai
+    df_real = extract_real_datasets()
+    real_count = len(df_real)
+    print(f"Loaded {real_count} real-world listings from 99acres datasets.")
+
+    # 2. Model listings for remaining Indian cities
     cities_data = CITIES_DATA
-
+    # Sample primarily from other cities to ensure balanced geographic coverage
+    non_zip_cities = [c for c in cities_data.keys() if c not in ['Gurgaon', 'Hyderabad', 'Kolkata', 'Mumbai']]
+    
     records = []
-    cities = list(cities_data.keys())
-
+    # Generate ~800 samples per remaining city (~22,400 rows)
     for _ in range(n_samples):
-        city = np.random.choice(cities)
+        city = np.random.choice(non_zip_cities)
         city_info = cities_data[city]
         location = np.random.choice(city_info["locations"])
         
@@ -273,8 +282,6 @@ def generate_indian_real_estate_dataset(n_samples=25000):
         # Add slight natural noise
         price_lakhs = round(price_lakhs * np.random.uniform(0.96, 1.04), 2)
         
-        # Annual appreciation drawn from the city's own band, so Bengaluru
-        # compounds faster than Kolkata instead of every city sharing one range.
         growth_lo, growth_hi = city_info["growth_rate"]
         annual_growth_rate = round(np.random.uniform(growth_lo, growth_hi), 3)
 
@@ -296,10 +303,17 @@ def generate_indian_real_estate_dataset(n_samples=25000):
             "price_lakhs": price_lakhs
         })
 
-    df = pd.DataFrame(records)
-    df.to_csv(DATASET_FILE, index=False)
-    print(f"Generated {len(df)} real estate records and saved to {DATASET_FILE}")
-    return df
+    df_modeled = pd.DataFrame(records)
+    
+    # 3. Combine Real + Modeled Datasets
+    if not df_real.empty:
+        df_combined = pd.concat([df_real, df_modeled], ignore_index=True)
+    else:
+        df_combined = df_modeled
+
+    df_combined.to_csv(DATASET_FILE, index=False)
+    print(f"Generated unified all-India dataset: {len(df_combined)} records ({real_count} real, {len(df_modeled)} modeled) saved to {DATASET_FILE}")
+    return df_combined
 
 def export_valuation_model(df, rf_r2, rf_rmse):
     """Fit and export a linear valuation model the Node API can score natively.
@@ -444,10 +458,11 @@ def train_model(regenerate=False):
     if dropped > 0:
         print(f"[Security] Filtered {dropped} anomalous/outlier records from training set.")
 
-    # One-hot encode categorical fields: city and location
-    df_encoded = pd.get_dummies(df, columns=["city", "location"], drop_first=True)
+    # One-hot encode categorical fields: city
+    df_encoded = pd.get_dummies(df, columns=["city"], drop_first=True)
 
-    X = df_encoded.drop(columns=["price_lakhs", "annual_growth_rate"])
+    drop_cols = [c for c in ["price_lakhs", "annual_growth_rate", "rate_sqft", "location"] if c in df_encoded.columns]
+    X = df_encoded.drop(columns=drop_cols)
     y = df_encoded["price_lakhs"]
 
     feature_names = list(X.columns)
