@@ -76,4 +76,12 @@ async function sanitizeAndLog({ input, userId, ip, userAgent }) {
   return result.clean;
 }
 
-module.exports = { sanitizePrompt, sanitizeAndLog, MAX_INPUT_LENGTH };
+/**
+ * Generic string sanitizer for short fields like city, location, amenity names.
+ */
+function sanitizeString(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/[<>{}\x00-\x1f]/g, '').trim().slice(0, 100);
+}
+
+module.exports = { sanitizePrompt, sanitizeAndLog, sanitizeString, MAX_INPUT_LENGTH };
