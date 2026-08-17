@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import hashlib
 import joblib
 import pandas as pd
 import numpy as np
@@ -22,6 +23,7 @@ if hasattr(sys.stdout, "reconfigure"):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATASET_FILE = os.path.join(BASE_DIR, "dataset.csv")
 MODEL_FILE = os.path.join(BASE_DIR, "model.pkl")
+MODEL_SHA_FILE = os.path.join(BASE_DIR, "model.sha256")
 
 # The exported valuation model lives under backend/utils/ rather than here.
 # Both runtimes read this one file — Node bundles it on Vercel (where the
@@ -369,6 +371,10 @@ def export_valuation_model(df, rf_r2, rf_rmse):
         c[len("city_"):]: float(w) for c, w in zip(columns, raw_coef) if c.startswith("city_")
     }
 
+    # Compute dataset hash for provenance
+    with open(DATASET_FILE, "rb") as fh:
+        dataset_sha = hashlib.sha256(fh.read()).hexdigest()
+
     payload = {
         "_comment": (
             "GENERATED FILE — do not edit by hand. Rewritten by "
@@ -388,6 +394,7 @@ def export_valuation_model(df, rf_r2, rf_rmse):
             "forest_rmse_lakhs": round(float(rf_rmse), 2),
             "training_rows": int(len(df)),
             "cities": len(cities),
+            "dataset_sha256": dataset_sha,
         },
     }
 
@@ -422,6 +429,20 @@ def train_model(regenerate=False):
                 f"{expected_cities} — regenerating so the new markets are modelled."
             )
             df = generate_indian_real_estate_dataset()
+
+    # --- Security Guard: Data Hygiene & Outlier Rejection ---
+    initial_count = len(df)
+    # Filter non-physical area or negative prices
+    df = df[(df["area_sqft"] >= 120) & (df["area_sqft"] <= 25000)].copy()
+    df = df[(df["price_lakhs"] >= 5.0) & (df["price_lakhs"] <= 50000.0)].copy()
+    df = df[(df["bedrooms"] >= 1) & (df["bedrooms"] <= 10)].copy()
+    # Rate per sqft sanity filter (₹1,000 to ₹1,50,000/sqft)
+    rate_sqft = (df["price_lakhs"] * 100000.0) / df["area_sqft"]
+    df = df[(rate_sqft >= 1000.0) & (rate_sqft <= 150000.0)].copy()
+
+    dropped = initial_count - len(df)
+    if dropped > 0:
+        print(f"[Security] Filtered {dropped} anomalous/outlier records from training set.")
 
     # One-hot encode categorical fields: city and location
     df_encoded = pd.get_dummies(df, columns=["city", "location"], drop_first=True)
@@ -458,6 +479,13 @@ def train_model(regenerate=False):
     }
     joblib.dump(artifacts, MODEL_FILE)
     print(f"Saved model artifacts to {MODEL_FILE}")
+
+    # Compute and save SHA-256 checksum for model.pkl
+    with open(MODEL_FILE, "rb") as fh:
+        model_sha = hashlib.sha256(fh.read()).hexdigest()
+    with open(MODEL_SHA_FILE, "w", encoding="utf-8") as fh:
+        fh.write(model_sha + "\n")
+    print(f"Saved model integrity checksum to {MODEL_SHA_FILE}")
 
     # Export the portable valuation model the recommendation engine scores with.
     export_valuation_model(df, r2, rmse)

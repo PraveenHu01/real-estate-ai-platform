@@ -1,6 +1,18 @@
 const axios = require('axios');
+const { logAuthEvent, reqContext } = require('../utils/audit');
+const { sanitizeString } = require('../utils/sanitize');
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+const INTERNAL_KEY = process.env.INTERNAL_SERVICE_KEY || 'real-estate-internal-dev-key';
+
+const mlClient = axios.create({
+  baseURL: ML_SERVICE_URL,
+  timeout: 5000,
+  headers: {
+    'X-Internal-Service-Key': INTERNAL_KEY,
+    'Content-Type': 'application/json',
+  },
+});
 
 // Both fallbacks below share one source of per-city figures, so /predict-price
 // and /investment-analysis cannot report different growth for the same city.
@@ -13,25 +25,59 @@ const {
 
 exports.predictPrice = async (req, res) => {
   try {
+    const rawCity = sanitizeString(String(req.body.city || 'Bhopal'));
+    const area_sqft = Math.max(100, Math.min(30000, Number(req.body.area_sqft) || 1000));
+    const bedrooms = Math.max(1, Math.min(12, Number(req.body.bedrooms) || 2));
+    const bathrooms = Math.max(1, Math.min(12, Number(req.body.bathrooms) || 2));
+    const age_years = Math.max(0, Math.min(100, Number(req.body.age_years) || 2));
+    const parking = Math.max(0, Math.min(10, Number(req.body.parking) || 1));
+    const floor = Math.max(0, Math.min(120, Number(req.body.floor) || 3));
+    const location = sanitizeString(String(req.body.location || 'City Centre'));
+
+    const sanitizedPayload = {
+      city: rawCity,
+      location,
+      area_sqft,
+      bedrooms,
+      bathrooms,
+      age_years,
+      parking,
+      floor,
+      furnished: sanitizeString(String(req.body.furnished || 'Semi-Furnished')),
+    };
+
+    let result;
     try {
-      const response = await axios.post(`${ML_SERVICE_URL}/predict-price`, req.body);
-      return res.json(response.data);
+      const response = await mlClient.post(`/predict-price`, sanitizedPayload);
+      result = response.data;
     } catch (mlErr) {
       // Fallback Engine — same per-city figures the ML service uses.
-      const { city, area_sqft, age_years, parking = 1, floor = 3 } = req.body;
-      const predicted_price = estimatePrice({ city, area_sqft, age_years, parking, floor });
+      const predicted_price = estimatePrice({ city: rawCity, area_sqft, age_years, parking, floor });
 
-      return res.json({
+      result = {
         predicted_price_lakhs: predicted_price,
         price_per_sqft: Math.round((predicted_price * 100000) / area_sqft),
         currency: "INR",
         investment_forecast: investmentForecast({
           current_price_lakhs: predicted_price,
-          city,
+          city: rawCity,
           age_years,
         }),
-      });
+      };
     }
+
+    // Security & audit observability
+    const ctx = reqContext(req);
+    await logAuthEvent({
+      userId: req.user?.id || null,
+      eventType: 'model_prediction',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      success: true,
+      detail: `City: ${rawCity}, Area: ${area_sqft}sqft, Price: ₹${result.predicted_price_lakhs}L`,
+    });
+
+    return res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -39,11 +85,16 @@ exports.predictPrice = async (req, res) => {
 
 exports.investmentAnalysis = async (req, res) => {
   try {
+    const city = sanitizeString(String(req.body.city || 'Bhopal'));
+    const current_price_lakhs = Math.max(1, Math.min(50000, Number(req.body.current_price_lakhs) || 50));
+    const age_years = Math.max(0, Math.min(100, Number(req.body.age_years) || 2));
+    const location = sanitizeString(String(req.body.location || 'City Centre'));
+
+    const payload = { current_price_lakhs, city, location, age_years };
     try {
-      const response = await axios.post(`${ML_SERVICE_URL}/investment-analysis`, req.body);
+      const response = await mlClient.post(`/investment-analysis`, payload);
       return res.json(response.data);
     } catch (err) {
-      const { current_price_lakhs, city, age_years } = req.body;
       return res.json(investmentForecast({ current_price_lakhs, city, age_years }));
     }
   } catch (error) {

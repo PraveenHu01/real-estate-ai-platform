@@ -56,6 +56,7 @@
     "forest_r2": 0.7911,
     "forest_rmse_lakhs": 31.52,
     "training_rows": 25000,
-    "cities": 32
+    "cities": 32,
+    "dataset_sha256": "4585d3ea775f9814ddff79fcb2b3439c1c395c48899439a14ea9c98c29af4e7b"
   }
 }

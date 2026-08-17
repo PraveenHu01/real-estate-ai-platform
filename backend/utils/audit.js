@@ -13,7 +13,7 @@ const EVENT_TYPES = [
   'account_locked', 'token_refresh', 'refresh_reuse_detected',
   'email_verified', 'password_reset_requested', 'password_reset_completed',
   'mfa_setup', 'mfa_enabled', 'mfa_success', 'mfa_failure',
-  'prompt_injection_attempt', 'rate_limit_exceeded',
+  'prompt_injection_attempt', 'rate_limit_exceeded', 'model_prediction',
 ];
 
 async function logAuthEvent({ userId = null, eventType, ip = null, userAgent = null, success = true, detail = null }) {

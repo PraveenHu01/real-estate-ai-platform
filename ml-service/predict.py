@@ -1,5 +1,6 @@
 import os
 import json
+import hashlib
 import joblib
 import pandas as pd
 import numpy as np
@@ -7,6 +8,7 @@ import numpy as np
 # Resolve paths relative to this file's directory so uvicorn works from any CWD
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "model.pkl")
+MODEL_SHA_PATH = os.path.join(BASE_DIR, "model.sha256")
 DATASET_PATH = os.path.join(BASE_DIR, "dataset.csv")
 
 # Shared JS-portable valuation model — the same file Node scores with on
@@ -19,10 +21,6 @@ VALUATION_PATH = os.path.join(BASE_DIR, "..", "backend", "utils", "valuationMode
 # fallback, the investment projection, and the safety lookup. Values are the
 # midpoints of the bands in train.py — keep the two files in step when either
 # changes, or the fallback will disagree with the trained model.
-#
-#   rate_per_sqft : typical asking rate in Rs/sqft
-#   growth        : annual capital appreciation
-#   crime         : 1.0 safest .. 6.0 least safe
 CITY_PROFILES = {
     # Tier 1 — metro
     "Mumbai":        {"rate_per_sqft": 22000, "growth": 0.084, "crime": 3.0},
@@ -35,7 +33,7 @@ CITY_PROFILES = {
     # NCR satellites
     "Gurgaon":       {"rate_per_sqft": 12200, "growth": 0.081, "crime": 3.1},
     "Noida":         {"rate_per_sqft":  7700, "growth": 0.079, "crime": 2.9},
-    # Tier 2
+    # Tier 2 & Tier 3 Regional Hubs
     "Chandigarh":    {"rate_per_sqft":  8100, "growth": 0.078, "crime": 2.2},
     "Kochi":         {"rate_per_sqft":  7300, "growth": 0.076, "crime": 2.4},
     "Coimbatore":    {"rate_per_sqft":  6300, "growth": 0.073, "crime": 2.3},
@@ -80,10 +78,20 @@ class PropertyAIEngine:
     def load_artifacts(self):
         if os.path.exists(MODEL_PATH):
             try:
+                # --- Security Check: Validate SHA-256 Checksum ---
+                if os.path.exists(MODEL_SHA_PATH):
+                    with open(MODEL_SHA_PATH, "r", encoding="utf-8") as sf:
+                        expected_sha = sf.read().strip()
+                    with open(MODEL_PATH, "rb") as mf:
+                        actual_sha = hashlib.sha256(mf.read()).hexdigest()
+                    if expected_sha and actual_sha != expected_sha:
+                        raise ValueError(f"Model integrity check failed! Expected {expected_sha[:12]}..., got {actual_sha[:12]}...")
+
                 self.artifacts = joblib.load(MODEL_PATH)
-                print("ML Engine loaded model.pkl successfully.")
+                print("ML Engine verified and loaded model.pkl successfully.")
             except Exception as e:
-                print(f"Error loading model.pkl: {e}")
+                print(f"[SECURITY WARNING] Failed to securely load model.pkl: {e}. Defaulting to safe valuation model.")
+                self.artifacts = None
         else:
             print(f"model.pkl not found at {MODEL_PATH}. Using formula fallback. Run train.py first.")
 
@@ -160,7 +168,13 @@ class PropertyAIEngine:
             furnished_code=furnished_code,
         )
         if fair is not None:
-            return round(max(10.0, fair), 2)
+            # --- Security Guard: Output Clamping against City Baselines ---
+            base_rate = city_profile(city)["rate_per_sqft"]
+            base_cost = (area_sqft * base_rate) / 100000.0
+            min_bound = max(5.0, base_cost * 0.35)
+            max_bound = max(25.0, base_cost * 3.50)
+            clamped_fair = min(max(min_bound, fair), max_bound)
+            return round(clamped_fair, 2)
 
         if self.artifacts:
             try:

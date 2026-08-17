@@ -56,4 +56,30 @@ const forgotPasswordLimiter = rateLimit({
   },
 });
 
-module.exports = { loginLimiter, registerLimiter, forgotPasswordLimiter };
+// The AI routes fan out to paid third-party APIs (Groq, then Gemini) and to the
+// ML service. What an unthrottled caller burns here is billing quota, not just
+// CPU — so these endpoints need a limit even though they touch no credentials
+// and read no user data. Left unlimited they are a denial-of-wallet target.
+//
+// Keyed by user id when a token is present so one visitor behind a shared NAT
+// cannot exhaust the budget for everyone else on that IP, falling back to the
+// IP subnet for guests. Requires optionalAuth to run first — that is what
+// populates req.user; without it every caller collapses into the guest bucket.
+// The per-process MemoryStore caveat at the top of this file applies here too.
+const AI_MAX_PER_HOUR = 40;
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,  // 1 hour
+  max: AI_MAX_PER_HOUR,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.user?.id ? `user:${req.user.id}` : `ip:${ipKey(req)}`),
+  handler: (req, res) => {
+    res.status(429).json({
+      message: 'AI request limit reached. Please try again later.',
+      code: 'RATE_LIMIT',
+    });
+  },
+});
+
+module.exports = { loginLimiter, registerLimiter, forgotPasswordLimiter, aiLimiter, AI_MAX_PER_HOUR };

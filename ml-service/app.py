@@ -1,12 +1,12 @@
-# pyrefly: ignore [missing-import]
-from fastapi import FastAPI, HTTPException
-# pyrefly: ignore [missing-import]
-from fastapi.middleware.cors import CORSMiddleware
-# pyrefly: ignore [missing-import]
-from pydantic import BaseModel
-from typing import Optional, List
-from predict import ai_engine, MODEL_PATH, DATASET_PATH
 import os
+import re
+from typing import Optional, List
+from fastapi import FastAPI, HTTPException, Header, Depends, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field, validator
+from predict import ai_engine, MODEL_PATH, DATASET_PATH
+
+INTERNAL_KEY = os.environ.get("INTERNAL_SERVICE_KEY", "real-estate-internal-dev-key")
 
 app = FastAPI(
     title="Real Estate AI ML Service",
@@ -14,43 +14,83 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Custom Security Headers Middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response: Response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
 # Enable CORS for React frontend & Node backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
+def sanitize_text(text: str) -> str:
+    """Strip potential injection characters, HTML tags, and null bytes."""
+    if not isinstance(text, str):
+        return text
+    clean = re.sub(r"[<>{}\x00-\x1f]", "", text).strip()
+    return clean[:100]
+
+def verify_internal_access(x_internal_service_key: Optional[str] = Header(None, alias="X-Internal-Service-Key")):
+    """Verify internal inter-service auth key if configured."""
+    expected = os.environ.get("INTERNAL_SERVICE_KEY")
+    if expected and x_internal_service_key != expected:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing internal service authentication key.")
+    return True
+
 class PricePredictionRequest(BaseModel):
-    city: str
-    location: str
-    area_sqft: float
-    bedrooms: int
-    bathrooms: int
-    age_years: int
-    parking: Optional[int] = 1
-    floor: Optional[int] = 3
-    furnished: Optional[str] = "Semi-Furnished"
+    city: str = Field(..., min_length=2, max_length=50)
+    location: str = Field(..., min_length=2, max_length=100)
+    area_sqft: float = Field(..., gt=50, le=30000, description="Area in sq ft (50 to 30,000)")
+    bedrooms: int = Field(..., ge=1, le=12, description="Bedrooms (1 to 12)")
+    bathrooms: int = Field(..., ge=1, le=12, description="Bathrooms (1 to 12)")
+    age_years: int = Field(..., ge=0, le=100, description="Property age in years (0 to 100)")
+    parking: Optional[int] = Field(1, ge=0, le=10)
+    floor: Optional[int] = Field(3, ge=0, le=120)
+    furnished: Optional[str] = Field("Semi-Furnished", max_length=30)
+
+    @validator("city", "location", "furnished", pre=True)
+    def clean_strings(cls, v):
+        return sanitize_text(v) if isinstance(v, str) else v
 
 class InvestmentRequest(BaseModel):
-    current_price_lakhs: float
-    city: str
-    location: str
-    age_years: int
+    current_price_lakhs: float = Field(..., gt=0.5, le=50000.0, description="Current price in ₹ Lakhs")
+    city: str = Field(..., min_length=2, max_length=50)
+    location: str = Field(..., min_length=2, max_length=100)
+    age_years: int = Field(..., ge=0, le=100)
+
+    @validator("city", "location", pre=True)
+    def clean_strings(cls, v):
+        return sanitize_text(v) if isinstance(v, str) else v
 
 class RecommendationRequest(BaseModel):
-    budget_lakhs: float
-    preferred_city: str
-    bedrooms: Optional[int] = None
-    preferred_locality: Optional[str] = None
-    max_school_distance_m: Optional[int] = 3000
-    max_hospital_distance_m: Optional[int] = 4000
-    max_metro_distance_m: Optional[int] = 5000
+    budget_lakhs: float = Field(..., gt=1.0, le=50000.0, description="Budget in ₹ Lakhs")
+    preferred_city: str = Field(..., min_length=2, max_length=50)
+    bedrooms: Optional[int] = Field(None, ge=1, le=12)
+    preferred_locality: Optional[str] = Field(None, max_length=100)
+    max_school_distance_m: Optional[int] = Field(3000, ge=100, le=20000)
+    max_hospital_distance_m: Optional[int] = Field(4000, ge=100, le=20000)
+    max_metro_distance_m: Optional[int] = Field(5000, ge=100, le=20000)
+
+    @validator("preferred_city", "preferred_locality", pre=True)
+    def clean_strings(cls, v):
+        return sanitize_text(v) if isinstance(v, str) else v
 
 class AIChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=1000)
+
+    @validator("message", pre=True)
+    def clean_message(cls, v):
+        return sanitize_text(v) if isinstance(v, str) else v
 
 @app.get("/")
 def home():
@@ -66,7 +106,7 @@ def home():
         ),
     }
 
-@app.post("/predict-price")
+@app.post("/predict-price", dependencies=[Depends(verify_internal_access)])
 def predict_price(req: PricePredictionRequest):
     try:
         furnished_code = {"Unfurnished": 0, "Semi-Furnished": 1, "Fully-Furnished": 2}.get(req.furnished, 1)
@@ -101,7 +141,7 @@ def predict_price(req: PricePredictionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/investment-analysis")
+@app.post("/investment-analysis", dependencies=[Depends(verify_internal_access)])
 def investment_analysis(req: InvestmentRequest):
     try:
         result = ai_engine.calculate_investment_analysis(
@@ -114,10 +154,11 @@ def investment_analysis(req: InvestmentRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/recommend-properties")
+@app.post("/recommend-properties", dependencies=[Depends(verify_internal_access)])
 def recommend_properties(req: RecommendationRequest):
     try:
         if ai_engine.dataset is None and os.path.exists(DATASET_PATH):
+            # pyrefly: ignore [unknown-name]
             ai_engine.dataset = pd.read_csv(DATASET_PATH)
 
         if ai_engine.dataset is None or len(ai_engine.dataset) == 0:
