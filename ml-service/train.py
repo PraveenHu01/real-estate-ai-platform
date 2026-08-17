@@ -157,11 +157,83 @@ CITIES_DATA = {
         "base_sqft_price": (4500, 11000),
         "crime_range": (1.7, 4.1),
         "growth_rate": (0.070, 0.087)
+    },
+    "Patna": {
+        "locations": ["Boring Road", "Kankarbagh", "Bailey Road", "Danapur", "Rajendra Nagar", "Anisabad", "Saguna More", "Patliputra Colony"],
+        "base_sqft_price": (3200, 6800),
+        "crime_range": (1.8, 4.3),
+        "growth_rate": (0.065, 0.082)
+    },
+    "Bhubaneswar": {
+        "locations": ["Patia", "Saheed Nagar", "Chandrasekharpur", "Khandagiri", "Nayapalli", "Jayadev Vihar", "Sundarpada", "Kalinga Nagar"],
+        "base_sqft_price": (3600, 7800),
+        "crime_range": (1.2, 3.2),
+        "growth_rate": (0.070, 0.086)
+    },
+    "Raipur": {
+        "locations": ["Shankar Nagar", "VIP Road", "Samta Colony", "Devendra Nagar", "Tatibandh", "Telibandha", "Khamardih", "Avanti Vihar"],
+        "base_sqft_price": (2800, 6000),
+        "crime_range": (1.4, 3.6),
+        "growth_rate": (0.066, 0.082)
+    },
+    "Ranchi": {
+        "locations": ["Morabadi", "Harmu", "Bariatu", "Doranda", "Kanke Road", "Ashok Nagar", "Lalpur", "Ratu Road"],
+        "base_sqft_price": (2900, 6200),
+        "crime_range": (1.5, 3.8),
+        "growth_rate": (0.064, 0.079)
+    },
+    "Vadodara": {
+        "locations": ["Alkapuri", "Gotri", "Vasna Road", "Manjalpur", "Karelibaug", "Akota", "Fatehgunj", "Sun Pharma Road"],
+        "base_sqft_price": (3200, 7200),
+        "crime_range": (1.3, 3.4),
+        "growth_rate": (0.068, 0.084)
+    },
+    "Kanpur": {
+        "locations": ["Civil Lines", "Swaroop Nagar", "Kakadeo", "Shyam Nagar", "Kidwai Nagar", "Kalyanpur", "Govind Nagar", "Panki"],
+        "base_sqft_price": (2800, 6400),
+        "crime_range": (1.8, 4.4),
+        "growth_rate": (0.062, 0.078)
+    },
+    "Varanasi": {
+        "locations": ["Sigra", "Lanka", "Shivpur", "Mahmoorganj", "Orderly Bazar", "Cantt", "Sarnath", "Pandeypur"],
+        "base_sqft_price": (3100, 6900),
+        "crime_range": (1.6, 4.0),
+        "growth_rate": (0.068, 0.085)
+    },
+    "Dehradun": {
+        "locations": ["Rajpur Road", "Sahastradhara Road", "Vasant Vihar", "Jakhan", "Clement Town", "Ballupur", "GMS Road", "Hathibarkala"],
+        "base_sqft_price": (3800, 8400),
+        "crime_range": (1.1, 3.1),
+        "growth_rate": (0.072, 0.089)
+    },
+    "Thiruvananthapuram": {
+        "locations": ["Kowdiar", "Pattom", "Kazhakkoottam", "Sasthamangalam", "Vellayambalam", "Technopark", "Sreekaryam", "PTP Nagar"],
+        "base_sqft_price": (4200, 9200),
+        "crime_range": (1.2, 3.3),
+        "growth_rate": (0.069, 0.085)
+    },
+    "Mysore": {
+        "locations": ["Gokulam", "Jayalakshmipuram", "Kuvempunagar", "Vijayanagar", "Hebbal", "Saraswathipuram", "Bogadi", "JP Nagar"],
+        "base_sqft_price": (3600, 7600),
+        "crime_range": (1.1, 3.2),
+        "growth_rate": (0.071, 0.087)
+    },
+    "Guwahati": {
+        "locations": ["GS Road", "Zoo Road", "Beltola", "Six Mile", "Hatigaon", "Ulubari", "Kahilipara", "Jalukbari"],
+        "base_sqft_price": (3400, 7400),
+        "crime_range": (1.5, 3.9),
+        "growth_rate": (0.066, 0.083)
+    },
+    "Nashik": {
+        "locations": ["College Road", "Gangapur Road", "Indira Nagar", "Govind Nagar", "Panchavati", "Ashoka Marg", "Pathardi Phata", "CIDCO"],
+        "base_sqft_price": (3100, 6800),
+        "crime_range": (1.3, 3.6),
+        "growth_rate": (0.067, 0.083)
     }
 }
 
 
-def generate_indian_real_estate_dataset(n_samples=10000):
+def generate_indian_real_estate_dataset(n_samples=25000):
     cities_data = CITIES_DATA
 
     records = []

@@ -47,6 +47,18 @@ CITY_PROFILES = {
     "Lucknow":       {"rate_per_sqft":  5100, "growth": 0.070, "crime": 2.9},
     "Nagpur":        {"rate_per_sqft":  5100, "growth": 0.070, "crime": 2.6},
     "Bhopal":        {"rate_per_sqft":  4200, "growth": 0.073, "crime": 2.6},
+    "Patna":         {"rate_per_sqft":  5000, "growth": 0.073, "crime": 3.0},
+    "Bhubaneswar":   {"rate_per_sqft":  5700, "growth": 0.078, "crime": 2.2},
+    "Raipur":        {"rate_per_sqft":  4400, "growth": 0.074, "crime": 2.5},
+    "Ranchi":        {"rate_per_sqft":  4550, "growth": 0.071, "crime": 2.6},
+    "Vadodara":      {"rate_per_sqft":  5200, "growth": 0.076, "crime": 2.3},
+    "Kanpur":        {"rate_per_sqft":  4600, "growth": 0.070, "crime": 3.1},
+    "Varanasi":      {"rate_per_sqft":  5000, "growth": 0.076, "crime": 2.8},
+    "Dehradun":      {"rate_per_sqft":  6100, "growth": 0.080, "crime": 2.1},
+    "Thiruvananthapuram": {"rate_per_sqft": 6700, "growth": 0.077, "crime": 2.2},
+    "Mysore":        {"rate_per_sqft":  5600, "growth": 0.079, "crime": 2.1},
+    "Guwahati":      {"rate_per_sqft":  5400, "growth": 0.074, "crime": 2.7},
+    "Nashik":        {"rate_per_sqft":  4950, "growth": 0.075, "crime": 2.4},
 }
 
 # Applied to any city absent from the table, so an unlisted city still returns

@@ -52,9 +52,9 @@ const PROCS = [
 
 const children = [];
 
-function portOpen(port) {
+function tryConnect(port, host) {
   return new Promise((resolve) => {
-    const socket = net.connect({ port, host: '127.0.0.1' });
+    const socket = net.connect({ port, host });
     const done = (result) => {
       socket.destroy();
       resolve(result);
@@ -63,6 +63,15 @@ function portOpen(port) {
     socket.once('error', () => done(false));
     socket.setTimeout(1000, () => done(false));
   });
+}
+
+// Probe both loopback families. Vite listens on "localhost", which Node 17+
+// resolves to ::1 first, so a 127.0.0.1-only probe never sees it and the wait
+// below times out even though the server is up. The backend binds :: and
+// uvicorn binds 127.0.0.1, so the two families genuinely both get used here.
+async function portOpen(port) {
+  const results = await Promise.all([tryConnect(port, '127.0.0.1'), tryConnect(port, '::1')]);
+  return results.some(Boolean);
 }
 
 // Poll the port instead of scraping the "ready in ___ms" banner — that wording
@@ -127,6 +136,14 @@ function createWindow() {
   });
 
   win.loadURL(VITE_URL);
+
+  win.webContents.on('did-finish-load', () => console.log('[shell] window loaded'));
+  win.webContents.on('did-fail-load', (_e, code, desc) =>
+    console.error(`[shell] window failed to load: ${desc} (${code})`)
+  );
+  win.on('closed', () => console.log('[shell] window closed'));
+
+  console.log('[shell] window created');
 }
 
 app.whenReady().then(async () => {
@@ -154,7 +171,16 @@ app.whenReady().then(async () => {
   createWindow();
 });
 
-app.on('window-all-closed', () => app.quit());
-app.on('will-quit', killAll);
+app.on('window-all-closed', () => {
+  console.log('[shell] window-all-closed');
+  app.quit();
+});
+app.on('will-quit', () => {
+  console.log('[shell] will-quit — stopping child processes');
+  killAll();
+});
 // Ctrl+C in the launching terminal should take the child processes with it.
-process.on('SIGINT', () => app.quit());
+process.on('SIGINT', () => {
+  console.log('[shell] SIGINT');
+  app.quit();
+});

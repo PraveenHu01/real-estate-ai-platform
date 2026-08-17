@@ -94,6 +94,54 @@ const CITIES = {
     rate: 4200, growth: 0.073, crime: 2.6, state: 'MP', lat: 23.2599, lng: 77.4126,
     localities: ['MP Nagar', 'Arera Colony', 'Kolar Road', 'Hoshangabad Road', 'Bawadiya Kalan', 'Ayodhya Bypass', 'Shahpura', 'New Market', 'Bairagarh', 'TT Nagar'],
   },
+  Patna: {
+    rate: 5000, growth: 0.073, crime: 3.0, state: 'BR', lat: 25.5941, lng: 85.1376,
+    localities: ['Boring Road', 'Kankarbagh', 'Bailey Road', 'Danapur', 'Rajendra Nagar', 'Anisabad', 'Saguna More', 'Patliputra Colony'],
+  },
+  Bhubaneswar: {
+    rate: 5700, growth: 0.078, crime: 2.2, state: 'OD', lat: 20.2961, lng: 85.8245,
+    localities: ['Patia', 'Saheed Nagar', 'Chandrasekharpur', 'Khandagiri', 'Nayapalli', 'Jayadev Vihar', 'Sundarpada', 'Kalinga Nagar'],
+  },
+  Raipur: {
+    rate: 4400, growth: 0.074, crime: 2.5, state: 'CG', lat: 21.2514, lng: 81.6296,
+    localities: ['Shankar Nagar', 'VIP Road', 'Samta Colony', 'Devendra Nagar', 'Tatibandh', 'Telibandha', 'Khamardih', 'Avanti Vihar'],
+  },
+  Ranchi: {
+    rate: 4550, growth: 0.071, crime: 2.6, state: 'JH', lat: 23.3441, lng: 85.3096,
+    localities: ['Morabadi', 'Harmu', 'Bariatu', 'Doranda', 'Kanke Road', 'Ashok Nagar', 'Lalpur', 'Ratu Road'],
+  },
+  Vadodara: {
+    rate: 5200, growth: 0.076, crime: 2.3, state: 'GJ', lat: 22.3072, lng: 73.1812,
+    localities: ['Alkapuri', 'Gotri', 'Vasna Road', 'Manjalpur', 'Karelibaug', 'Akota', 'Fatehgunj', 'Sun Pharma Road'],
+  },
+  Kanpur: {
+    rate: 4600, growth: 0.070, crime: 3.1, state: 'UP', lat: 26.4499, lng: 80.3319,
+    localities: ['Civil Lines', 'Swaroop Nagar', 'Kakadeo', 'Shyam Nagar', 'Kidwai Nagar', 'Kalyanpur', 'Govind Nagar', 'Panki'],
+  },
+  Varanasi: {
+    rate: 5000, growth: 0.076, crime: 2.8, state: 'UP', lat: 25.3176, lng: 82.9739,
+    localities: ['Sigra', 'Lanka', 'Shivpur', 'Mahmoorganj', 'Orderly Bazar', 'Cantt', 'Sarnath', 'Pandeypur'],
+  },
+  Dehradun: {
+    rate: 6100, growth: 0.080, crime: 2.1, state: 'UK', lat: 30.3165, lng: 78.0322,
+    localities: ['Rajpur Road', 'Sahastradhara Road', 'Vasant Vihar', 'Jakhan', 'Clement Town', 'Ballupur', 'GMS Road', 'Hathibarkala'],
+  },
+  Thiruvananthapuram: {
+    rate: 6700, growth: 0.077, crime: 2.2, state: 'KL', lat: 8.5241, lng: 76.9366,
+    localities: ['Kowdiar', 'Pattom', 'Kazhakkoottam', 'Sasthamangalam', 'Vellayambalam', 'Technopark', 'Sreekaryam', 'PTP Nagar'],
+  },
+  Mysore: {
+    rate: 5600, growth: 0.079, crime: 2.1, state: 'KA', lat: 12.2958, lng: 76.6394,
+    localities: ['Gokulam', 'Jayalakshmipuram', 'Kuvempunagar', 'Vijayanagar', 'Hebbal', 'Saraswathipuram', 'Bogadi', 'JP Nagar'],
+  },
+  Guwahati: {
+    rate: 5400, growth: 0.074, crime: 2.7, state: 'AS', lat: 26.1445, lng: 91.7362,
+    localities: ['GS Road', 'Zoo Road', 'Beltola', 'Six Mile', 'Hatigaon', 'Ulubari', 'Kahilipara', 'Jalukbari'],
+  },
+  Nashik: {
+    rate: 4950, growth: 0.075, crime: 2.4, state: 'MH', lat: 19.9975, lng: 73.7898,
+    localities: ['College Road', 'Gangapur Road', 'Indira Nagar', 'Govind Nagar', 'Panchavati', 'Ashoka Marg', 'Pathardi Phata', 'CIDCO'],
+  },
 };
 
 const VILLA_IMAGES = [
