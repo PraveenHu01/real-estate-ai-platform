@@ -1,6 +1,4 @@
 const crypto = require('crypto');
-const { TOTP } = require('otplib');
-const qrcode = require('qrcode');
 
 const users = require('../db/users');
 const { hashPassword, verifyPassword, validatePassword, checkPolicy } = require('../utils/password');
