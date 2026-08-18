@@ -4,8 +4,18 @@ export const WishlistContext = createContext();
 
 export const WishlistProvider = ({ children }) => {
   const [wishlistIds, setWishlistIds] = useState(() => {
-    const saved = localStorage.getItem('wishlist_ids');
-    return saved ? JSON.parse(saved) : ['prop-101', 'prop-104'];
+    try {
+      const saved = localStorage.getItem('wishlist_ids');
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      // Clean up legacy placeholder mock IDs if present
+      if (Array.isArray(parsed)) {
+        return parsed.filter(id => id !== 'prop-101' && id !== 'prop-104');
+      }
+      return [];
+    } catch {
+      return [];
+    }
   });
 
   useEffect(() => {
