@@ -1,17 +1,11 @@
-// Throwaway Electron shell: runs this platform as a local desktop app.
+// Electron Desktop Shell: runs InvestAI Real Estate Platform as a native desktop application.
 //
-// It boots the three processes the repo already has (Express :5000, FastAPI
-// :8000, Vite :3000) and shows the Vite server in a native window. Vite's
-// existing proxy in frontend/vite.config.js already forwards /api to :5000, so
-// requests stay same-origin, the HttpOnly auth cookies keep working, and no
-// application code has to know it is running under Electron.
-//
-// ponytail: dev-only shell — unpackaged, unsigned, no auto-update, and it
-// assumes frontend/backend node_modules and the ml-service Python deps are
-// already installed. Upgrade path: serve frontend/dist from backend/app.js so
-// there is one process to wrap, then package with electron-builder.
+// It boots the local services (Express backend :5000, Python ML :8000, Vite frontend :3000)
+// and displays the complete responsive UI inside a native Electron frame.
+// Vite's proxy in frontend/vite.config.js forwards /api to :5000, keeping auth cookies
+// and real-time features seamless.
 
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, shell, Menu } = require('electron');
 const { spawn } = require('node:child_process');
 const net = require('node:net');
 const path = require('node:path');
@@ -20,9 +14,6 @@ const ROOT = path.join(__dirname, '..');
 const VITE_PORT = 3000;
 const VITE_URL = `http://localhost:${VITE_PORT}`;
 
-// Spawned as direct single processes rather than `npm run …`: on Windows an
-// npm.cmd shell wrapper sits between us and the real server, so killing the pid
-// we hold orphans the server and leaves its port bound.
 const PROCS = [
   {
     name: 'backend',
@@ -44,8 +35,6 @@ const PROCS = [
     cmd: 'node',
     args: [path.join(ROOT, 'frontend', 'node_modules', 'vite', 'bin', 'vite.js')],
     cwd: 'frontend',
-    // Vite's config sets open:true, which would also launch a browser tab
-    // alongside the app window. Vite skips opening when BROWSER is "none".
     env: { BROWSER: 'none' },
   },
 ];
@@ -65,17 +54,11 @@ function tryConnect(port, host) {
   });
 }
 
-// Probe both loopback families. Vite listens on "localhost", which Node 17+
-// resolves to ::1 first, so a 127.0.0.1-only probe never sees it and the wait
-// below times out even though the server is up. The backend binds :: and
-// uvicorn binds 127.0.0.1, so the two families genuinely both get used here.
 async function portOpen(port) {
   const results = await Promise.all([tryConnect(port, '127.0.0.1'), tryConnect(port, '::1')]);
   return results.some(Boolean);
 }
 
-// Poll the port instead of scraping the "ready in ___ms" banner — that wording
-// is not a contract, and a version bump would silently hang startup.
 async function waitForPort(port, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -107,8 +90,6 @@ function killAll() {
   for (const child of children) {
     if (child.exitCode !== null || child.signalCode !== null) continue;
     if (process.platform === 'win32') {
-      // /T kills the tree: vite and uvicorn spawn helpers of their own that
-      // would otherwise survive and keep :3000 / :8000 bound.
       spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
     } else {
       child.kill('SIGTERM');
@@ -117,19 +98,51 @@ function killAll() {
   children.length = 0;
 }
 
+function createMenu(win) {
+  const template = [
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => win.reload() },
+        { label: 'Toggle Full Screen', accelerator: 'F11', click: () => win.setFullScreen(!win.isFullScreen()) },
+        { type: 'separator' },
+        { label: 'Quit', accelerator: 'CmdOrCtrl+Q', click: () => app.quit() },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', role: 'zoomIn' },
+        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', role: 'zoomOut' },
+        { label: 'Reset Zoom', accelerator: 'CmdOrCtrl+0', role: 'resetZoom' },
+        { type: 'separator' },
+        { label: 'Toggle Developer Tools', accelerator: 'CmdOrCtrl+Shift+I', click: () => win.webContents.toggleDevTools() },
+      ],
+    },
+  ];
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
-    title: 'Real Estate AI Platform',
-    backgroundColor: '#0f172a', // avoids a white flash before the dark UI paints
-    webPreferences: { nodeIntegration: false, contextIsolation: true },
+    minWidth: 1080,
+    minHeight: 700,
+    title: 'InvestAI Real Estate Platform',
+    center: true,
+    show: false,
+    backgroundColor: '#0b0f19',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
   });
 
-  win.setMenuBarVisibility(false);
+  createMenu(win);
 
-  // External links (map tile attribution, docs) go to the real browser — this
-  // window has no back button to escape them with.
+  // External links open in user's default browser
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -137,21 +150,20 @@ function createWindow() {
 
   win.loadURL(VITE_URL);
 
-  win.webContents.on('did-finish-load', () => console.log('[shell] window loaded'));
-  win.webContents.on('did-fail-load', (_e, code, desc) =>
-    console.error(`[shell] window failed to load: ${desc} (${code})`)
-  );
-  win.on('closed', () => console.log('[shell] window closed'));
+  win.once('ready-to-show', () => {
+    win.show();
+    console.log('[desktop] Window ready and shown');
+  });
 
-  console.log('[shell] window created');
+  win.webContents.on('did-finish-load', () => console.log('[desktop] Window content loaded'));
+  win.webContents.on('did-fail-load', (_e, code, desc) =>
+    console.error(`[desktop] Window failed to load: ${desc} (${code})`)
+  );
+  win.on('closed', () => console.log('[desktop] Window closed'));
 }
 
 app.whenReady().then(async () => {
   for (const proc of PROCS) {
-    // Reuse anything already listening. Without this, a dev server the user
-    // started earlier keeps its port and our duplicate dies on EADDRINUSE —
-    // or worse, Vite quietly falls back to :3001 and the window loads the
-    // wrong server.
     if (await portOpen(proc.port)) {
       console.log(`[${proc.name}] already listening on :${proc.port} — reusing it`);
       continue;
@@ -161,8 +173,8 @@ app.whenReady().then(async () => {
 
   if (!(await waitForPort(VITE_PORT, 90_000))) {
     dialog.showErrorBox(
-      'Dev server never came up',
-      `Nothing is listening on ${VITE_URL} after 90s.\n\nCheck the terminal for [vite] / [backend] errors.`
+      'Startup Failed',
+      `Could not connect to Vite server on ${VITE_URL} after 90s.\n\nCheck terminal logs for details.`
     );
     app.quit();
     return;
@@ -172,15 +184,16 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  console.log('[shell] window-all-closed');
+  console.log('[desktop] All windows closed');
   app.quit();
 });
+
 app.on('will-quit', () => {
-  console.log('[shell] will-quit — stopping child processes');
+  console.log('[desktop] Application quitting — terminating child processes');
   killAll();
 });
-// Ctrl+C in the launching terminal should take the child processes with it.
+
 process.on('SIGINT', () => {
-  console.log('[shell] SIGINT');
+  console.log('[desktop] SIGINT received');
   app.quit();
 });

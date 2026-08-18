@@ -1,13 +1,36 @@
 {
   "name": "real-estate-desktop",
-  "private": true,
-  "version": "0.0.0",
-  "description": "Temporary Electron shell for running the platform as a local desktop app. Not deployed and not committed — see .git/info/exclude.",
+  "productName": "InvestAI Real Estate Platform",
+  "version": "1.0.0",
+  "description": "InvestAI Real Estate Investment Platform Desktop Application",
   "main": "main.cjs",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build:app": "electron-builder --win --dir",
+    "dist": "electron-builder --win nsis",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.investai.desktop",
+    "productName": "InvestAI Real Estate",
+    "directories": {
+      "output": "dist-package"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "files": [
+      "main.cjs",
+      "package.json"
+    ]
   },
   "devDependencies": {
-    "electron": "^43.4.0"
+    "electron": "^43.4.0",
+    "electron-builder": "^26.0.2"
   }
 }
