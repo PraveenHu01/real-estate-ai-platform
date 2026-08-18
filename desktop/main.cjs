@@ -1,9 +1,9 @@
 // Electron Desktop Shell: runs InvestAI Real Estate Platform as a native desktop application.
 //
-// It boots the local services (Express backend :5000, Python ML :8000, Vite frontend :3000)
-// and displays the complete responsive UI inside a native Electron frame.
-// Vite's proxy in frontend/vite.config.js forwards /api to :5000, keeping auth cookies
-// and real-time features seamless.
+// In Development: boots local services (Express :5000, Python ML :8000, Vite :3000)
+// and opens the live development window.
+// In Packaged Mode (.exe): connects directly to the production cloud engine
+// with zero local dependencies required.
 
 const { app, BrowserWindow, dialog, shell, Menu } = require('electron');
 const { spawn } = require('node:child_process');
@@ -12,7 +12,8 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const VITE_PORT = 3000;
-const VITE_URL = `http://localhost:${VITE_PORT}`;
+const PROD_URL = 'https://real-estate-ai-platform-psi.vercel.app';
+const DEV_URL = `http://localhost:${VITE_PORT}`;
 
 const PROCS = [
   {
@@ -124,7 +125,7 @@ function createMenu(win) {
   Menu.setApplicationMenu(menu);
 }
 
-function createWindow() {
+function createWindow(targetUrl) {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -142,17 +143,17 @@ function createWindow() {
 
   createMenu(win);
 
-  // External links open in user's default browser
+  // External links open in default browser
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  win.loadURL(VITE_URL);
+  win.loadURL(targetUrl);
 
   win.once('ready-to-show', () => {
     win.show();
-    console.log('[desktop] Window ready and shown');
+    console.log(`[desktop] Window ready and shown (URL: ${targetUrl})`);
   });
 
   win.webContents.on('did-finish-load', () => console.log('[desktop] Window content loaded'));
@@ -163,6 +164,13 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // If running as packaged .exe, open the production app directly
+  if (app.isPackaged) {
+    createWindow(PROD_URL);
+    return;
+  }
+
+  // In development, boot local services
   for (const proc of PROCS) {
     if (await portOpen(proc.port)) {
       console.log(`[${proc.name}] already listening on :${proc.port} — reusing it`);
@@ -174,13 +182,13 @@ app.whenReady().then(async () => {
   if (!(await waitForPort(VITE_PORT, 90_000))) {
     dialog.showErrorBox(
       'Startup Failed',
-      `Could not connect to Vite server on ${VITE_URL} after 90s.\n\nCheck terminal logs for details.`
+      `Could not connect to Vite server on ${DEV_URL} after 90s.\n\nCheck terminal logs for details.`
     );
     app.quit();
     return;
   }
 
-  createWindow();
+  createWindow(DEV_URL);
 });
 
 app.on('window-all-closed', () => {
