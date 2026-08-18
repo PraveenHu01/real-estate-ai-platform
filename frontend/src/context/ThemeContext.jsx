@@ -1,4 +1,5 @@
-import React, { createContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useState, useLayoutEffect, useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 
 export const ThemeContext = createContext();
 
@@ -7,7 +8,9 @@ export const THEMES = {
   DARK: 'dark',
 };
 
-const TRANSITION_MS = 240;
+// Long enough to outlast the CSS animation in index.css, which is what actually
+// times the swap; this only decides when the fallback class comes back off.
+const TRANSITION_MS = 260;
 
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
@@ -19,7 +22,11 @@ export const ThemeProvider = ({ children }) => {
   const paintedTheme = useRef(null);
   const transitionTimer = useRef(null);
 
-  useEffect(() => {
+  // useLayoutEffect, not useEffect: startViewTransition grabs its "after"
+  // snapshot as soon as its callback returns, and a passive effect has not run
+  // by that point. The class swap has to be in the DOM synchronously or the two
+  // snapshots come out identical and the crossfade plays over nothing.
+  useLayoutEffect(() => {
     const root = document.documentElement;
     const body = document.body;
 
@@ -61,14 +68,21 @@ export const ThemeProvider = ({ children }) => {
   const toggleTheme = () => {
     const nextTheme = theme === THEMES.WHITE ? THEMES.DARK : THEMES.WHITE;
 
-    // Native hardware-accelerated View Transition API for instant, buttery-smooth 60/120fps crossfade
-    if (typeof document !== 'undefined' && 'startViewTransition' in document) {
-      document.startViewTransition(() => {
-        setTheme(nextTheme);
-      });
-    } else {
+    if (typeof document === 'undefined' || !('startViewTransition' in document)) {
       setTheme(nextTheme);
+      return;
     }
+
+    // Native GPU-accelerated crossfade: the browser snapshots the page before
+    // and after, then fades between the two images, so the whole tree moves as
+    // one regardless of how many rules the swap repaints.
+    document.startViewTransition(() => {
+      // flushSync forces the render and the layout effect above to land before
+      // the callback returns. A bare setTheme only queues the update — React 18
+      // batches it, so it commits after the snapshot and the crossfade animates
+      // two identical frames while the real swap snaps in afterwards.
+      flushSync(() => setTheme(nextTheme));
+    });
   };
 
   return (

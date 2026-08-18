@@ -17,13 +17,23 @@ export default function ThemeToggle({ className = "" }) {
           : 'bg-neutral-900 border-neutral-800 text-neutral-200 hover:text-white hover:border-neutral-700 shadow-sm'
       } ${className}`}
     >
-      <div className="relative flex items-center justify-center">
-        {isWhite ? (
-          <Sun className="w-4 h-4 text-amber-500 group-hover:rotate-45 transition-transform" />
-        ) : (
-          <Sparkles className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
-        )}
-      </div>
+      {/* Both icons stay mounted and cross-fade. Rendering only the active one
+          made the control itself snap while the rest of the page was still
+          easing — the button is exactly where the eye is during a click. */}
+      <span className="relative block w-4 h-4">
+        <Sun
+          aria-hidden="true"
+          className={`absolute inset-0 w-4 h-4 text-amber-500 transition-all duration-300 ease-out group-hover:rotate-45 ${
+            isWhite ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-50'
+          }`}
+        />
+        <Sparkles
+          aria-hidden="true"
+          className={`absolute inset-0 w-4 h-4 text-purple-400 transition-all duration-300 ease-out group-hover:scale-110 ${
+            isWhite ? 'opacity-0 rotate-90 scale-50' : 'opacity-100 rotate-0 scale-100'
+          }`}
+        />
+      </span>
 
       <span className="text-xs font-semibold tracking-wide">
         {isWhite ? 'White Mode' : 'OLED Black'}

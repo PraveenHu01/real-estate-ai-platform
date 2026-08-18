@@ -11,9 +11,10 @@
     --text-main: #0f172a;
     --text-muted: #64748b;
 
-    /* Theme-swap easing. ThemeProvider reads the duration too — keep the ms
-       value in TRANSITION_MS there in sync with this. */
-    --theme-transition-duration: 320ms;
+    /* Theme-swap timing. Kept in step with the view-transition duration below
+       and with TRANSITION_MS in ThemeContext, which must be the longest of the
+       three so the fallback class outlives its own animation. */
+    --theme-transition-duration: 220ms;
     --theme-transition-ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -79,24 +80,44 @@
   to { opacity: 1; }
 }
 
-/* Fallback for browsers without View Transitions */
-html.theme-transition body,
-html.theme-transition header,
-html.theme-transition nav,
-html.theme-transition main,
-html.theme-transition footer,
-html.theme-transition section,
-html.theme-transition article,
-html.theme-transition .glass-card,
-html.theme-transition .glass-nav,
-html.theme-transition input,
-html.theme-transition select,
-html.theme-transition textarea,
-html.theme-transition button {
-  transition: background-color 220ms cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 220ms cubic-bezier(0.4, 0, 0.2, 1),
-              color 220ms cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 220ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+/* Only ::view-transition-old is a frozen bitmap; the new side is a live view of
+   the real page. So body/.glass-card/.glass-nav easing their own colours are
+   still mid-transition while that live side fades in — two eases stacked, which
+   softens the crossfade instead of sharpening it. Hand the timing to the
+   snapshot for the duration. Degrades to the stacked ease where
+   :active-view-transition is unsupported, which still looks fine. */
+html:active-view-transition body,
+html:active-view-transition .glass-card,
+html:active-view-transition .glass-nav {
+  transition: none !important;
+}
+
+/* Fallback for browsers without View Transitions (Firefox, older Safari).
+   ThemeContext only adds .theme-transition when startViewTransition is missing,
+   so this costs nothing on Chromium and nothing at all outside a swap.
+
+   Deliberately the whole tree rather than a list of semantic tags: the
+   overrides further down repaint hundreds of Tailwind utility classes on plain
+   divs, spans and badges — .bg-slate-800, .text-slate-400, borders, dividers.
+   Those are the bulk of this UI, and easing only body/nav/main while they snap
+   is what made the switch read as a flicker in the first place. */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition-property: background-color, border-color, color, fill, stroke,
+    box-shadow, outline-color, opacity, transform !important;
+  transition-duration: var(--theme-transition-duration) !important;
+  transition-timing-function: var(--theme-transition-ease) !important;
+  transition-delay: 0s !important;
+}
+
+/* Leaflet drives pan/zoom through transform and fades tiles in through opacity.
+   Easing those would make the map drift or ghost when a swap lands mid-load, so
+   the map keeps its own timing. */
+html.theme-transition .leaflet-container,
+html.theme-transition .leaflet-container * {
+  transition: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
