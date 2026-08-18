@@ -17,6 +17,7 @@
       "output": "dist-package"
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "dir",
@@ -26,7 +27,8 @@
     },
     "files": [
       "main.cjs",
-      "package.json"
+      "package.json",
+      "icon.png"
     ]
   },
   "devDependencies": {

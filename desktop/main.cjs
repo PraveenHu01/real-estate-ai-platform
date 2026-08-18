@@ -126,12 +126,14 @@ function createMenu(win) {
 }
 
 function createWindow(targetUrl) {
+  const iconPath = path.join(__dirname, 'icon.png');
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1080,
     minHeight: 700,
     title: 'InvestAI Real Estate Platform',
+    icon: iconPath,
     center: true,
     show: false,
     backgroundColor: '#0b0f19',

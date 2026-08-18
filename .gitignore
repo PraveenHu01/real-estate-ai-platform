@@ -24,6 +24,10 @@ env/
 dist/
 build/
 *.tsbuildinfo
+desktop/dist-package/
+desktop/build/
+*.exe
+*.blockmap
 
 # === ML artifacts (regenerate with: python train.py) ===
 ml-service/model.pkl
