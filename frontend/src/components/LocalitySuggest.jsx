@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, ChevronDown, Check, Sparkles, X } from 'lucide-react';
+import { MapPin, ChevronDown, Check, X } from 'lucide-react';
 import api from '../services/api';
 
 const DEFAULT_LOCALITY_MAP = {
@@ -20,7 +20,8 @@ export default function LocalitySuggest({
   value = '',
   onChange,
   placeholder = "Select or type available area...",
-  className = ""
+  className = "",
+  placement = "top" // 'top' for opening upward, 'bottom' for downward
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState(value);
@@ -98,6 +99,8 @@ export default function LocalitySuggest({
     loc.name.toLowerCase().includes(query.toLowerCase().trim())
   );
 
+  const isUpward = placement === 'top';
+
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <div className="relative flex items-center">
@@ -133,14 +136,20 @@ export default function LocalitySuggest({
             className="p-1 text-slate-400 hover:text-white rounded-md transition"
             title="Browse available areas"
           >
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180 text-blue-400' : ''}`} />
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${
+              isOpen 
+                ? (isUpward ? 'rotate-0 text-blue-400' : 'rotate-180 text-blue-400') 
+                : (isUpward ? 'rotate-180' : '')
+            }`} />
           </button>
         </div>
       </div>
 
-      {/* Suggestion Dropdown */}
+      {/* Suggestion Dropdown - Positioned Upward by default */}
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-60 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-2xl p-1.5 space-y-1 text-xs backdrop-blur-xl">
+        <div className={`absolute left-0 right-0 z-50 max-h-60 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-2xl p-1.5 space-y-1 text-xs backdrop-blur-xl ${
+          isUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+        }`}>
           <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between border-b border-slate-800/80">
             <span>Available Areas in {city === 'All' ? 'All India' : city}</span>
             <span className="text-blue-400 font-semibold">{filtered.length} found</span>
