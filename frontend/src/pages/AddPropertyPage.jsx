@@ -252,6 +252,53 @@ export default function AddPropertyPage() {
     );
   }
 
+  // Guard: Feature is accessible when seller or admin account is logged in
+  if (!user || (user.role !== 'Seller' && user.role !== 'Admin')) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-20 text-center space-y-6 animate-fade-in">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center mx-auto text-white shadow-xl glow-blue">
+          <ShieldCheck className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl sm:text-3xl font-black text-white">Seller Account Required</h2>
+          <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
+            {user ? (
+              <>You are currently signed in as a <span className="text-blue-400 font-semibold">{user.role}</span> ({user.email}). Please sign in with a <strong>Seller account</strong> to list properties.</>
+            ) : (
+              <>Please sign in with a <strong>Seller account</strong> or register with the <strong>Seller role</strong> to upload property photos and publish listings.</>
+            )}
+          </p>
+        </div>
+
+        <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4 text-left">
+          <div className="text-xs text-slate-300 font-semibold">Demo Seller Credentials:</div>
+          <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+            <div>
+              <div className="text-white font-mono font-bold">seller@realestateai.com</div>
+              <div className="text-slate-400 font-mono">SellerDemo2026!</div>
+            </div>
+            <span className="px-2 py-1 rounded bg-blue-500/20 text-blue-300 text-[10px] font-bold">Role: Seller</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <Link
+              to="/login"
+              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs text-center shadow-lg transition"
+            >
+              Sign In to Seller Account
+            </Link>
+            <Link
+              to="/register"
+              className="flex-1 py-3 rounded-xl bg-slate-900 border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white font-bold text-xs text-center transition"
+            >
+              Create Seller Account
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
 

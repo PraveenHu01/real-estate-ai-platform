@@ -80,10 +80,12 @@ export default function Navbar() {
               <MessageSquare className="w-5 h-5" />
             </Link>
 
-            <Link to="/add-property" className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-semibold flex items-center space-x-2 shadow-lg glow-blue transition">
-              <PlusCircle className="w-4 h-4" />
-              <span>List Property</span>
-            </Link>
+            {(user?.role === 'Seller' || user?.role === 'Admin') && (
+              <Link to="/add-property" className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-semibold flex items-center space-x-2 shadow-lg glow-blue transition">
+                <PlusCircle className="w-4 h-4" />
+                <span>List Property</span>
+              </Link>
+            )}
 
             {user?.role === 'Admin' && (
               <Link to="/admin" className="px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-sm font-semibold flex items-center space-x-1.5 transition">
@@ -147,7 +149,9 @@ export default function Navbar() {
           {user?.role === 'Admin' && (
             <Link to="/admin" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-medium text-amber-400">Admin Panel</Link>
           )}
-          <Link to="/add-property" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-semibold text-blue-400">+ List Property</Link>
+          {(user?.role === 'Seller' || user?.role === 'Admin') && (
+            <Link to="/add-property" onClick={() => setMobileOpen(false)} className="block py-2.5 text-sm font-semibold text-blue-400">+ List Property</Link>
+          )}
           {user ? (
             <button onClick={() => { logout(); setMobileOpen(false); }} className="w-full text-left py-2.5 text-sm font-medium text-red-400">Logout ({user.name})</button>
           ) : (
