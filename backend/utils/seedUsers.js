@@ -1,5 +1,6 @@
 // Seed the three demo accounts with real Argon2id-hashed passwords.
 // Run once after the database is migrated: node utils/seedUsers.js
+require('dotenv').config();
 
 const { connect, migrate, close } = require('../db');
 const { createUser, findByEmail, countUsers } = require('../db/users');

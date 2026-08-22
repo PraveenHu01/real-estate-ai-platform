@@ -6,6 +6,7 @@ import api from '../services/api';
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [devMode, setDevMode] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -13,7 +14,8 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError(''); setLoading(true);
     try {
-      await api.post('/auth/forgot-password', { email });
+      const res = await api.post('/auth/forgot-password', { email });
+      setDevMode(Boolean(res.data?.devMode));
       setSent(true);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to send reset email');
@@ -34,9 +36,16 @@ export default function ForgotPasswordPage() {
             If an account exists for <span className="text-slate-200 font-semibold">{email}</span>,
             we sent a password reset link.
           </p>
-          <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-[11px] text-blue-300 text-left">
-            <strong>Development mode:</strong> email isn't actually sent. The reset link is printed in the backend terminal.
-          </div>
+          {devMode ? (
+            <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-[11px] text-blue-300 text-left">
+              <strong>Development mode:</strong> SMTP credentials are not configured in your <code>.env</code> file.
+              The reset link is printed in the backend terminal.
+            </div>
+          ) : (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-[11px] text-emerald-300 text-left">
+              <strong>Email dispatched!</strong> Please check your email inbox and spam folder for the password reset link.
+            </div>
+          )}
           <Link to="/login" className="block w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition glow-blue">
             ← Back to Sign In
           </Link>

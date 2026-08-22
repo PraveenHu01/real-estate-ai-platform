@@ -1,26 +1,47 @@
+const { getAdminMetrics, findProperties, updatePropertyStatus } = require('../db/properties');
 const { initialProperties } = require('../utils/seedData');
 
-let pendingListings = [...initialProperties];
+let inMemoryPendingListings = [...initialProperties];
 
 exports.getAdminDashboard = async (req, res) => {
-  res.json({
-    metrics: {
-      totalProperties: pendingListings.length,
-      approvedProperties: pendingListings.filter(p => p.status === 'Approved').length,
-      pendingProperties: pendingListings.filter(p => p.status === 'Pending').length,
-      totalUsers: 142,
-      activeSellers: 38,
-      platformRevenueLakhs: 18.5
-    },
-    properties: pendingListings
-  });
+  try {
+    const metrics = await getAdminMetrics();
+    const properties = await findProperties({ status: null });
+
+    res.json({
+      metrics,
+      properties: properties.length > 0 ? properties : inMemoryPendingListings
+    });
+  } catch (err) {
+    // Fallback if DB query fails
+    res.json({
+      metrics: {
+        totalProperties: inMemoryPendingListings.length,
+        approvedProperties: inMemoryPendingListings.filter(p => p.status === 'Approved').length,
+        pendingProperties: inMemoryPendingListings.filter(p => p.status === 'Pending').length,
+        totalUsers: 142,
+        activeSellers: 38,
+        platformRevenueLakhs: 18.5
+      },
+      properties: inMemoryPendingListings
+    });
+  }
 };
 
 exports.updateListingStatus = async (req, res) => {
   const { id } = req.params;
   const { status } = req.body; // 'Approved' | 'Rejected'
   
-  const prop = pendingListings.find(p => p.id === id || p._id === id);
+  try {
+    const updated = await updatePropertyStatus(id, status);
+    if (updated) {
+      return res.json({ message: `Property status updated to ${status}`, property: updated });
+    }
+  } catch (err) {
+    // continue to fallback
+  }
+
+  const prop = inMemoryPendingListings.find(p => p.id === id || p._id === id);
   if (prop) {
     prop.status = status;
   }

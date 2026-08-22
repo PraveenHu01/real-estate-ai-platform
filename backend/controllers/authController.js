@@ -7,6 +7,7 @@ const {
 } = require('../utils/tokens');
 const { logAuthEvent, reqContext, getEventsForUser, getAllEvents } = require('../utils/audit');
 const { ACCESS_COOKIE, REFRESH_COOKIE } = require('../middleware/authMiddleware');
+const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/emailService');
 
 const ACCESS_MAX_AGE = 15 * 60 * 1000;          // 15 minutes
 const REFRESH_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -114,16 +115,14 @@ exports.register = async (req, res) => {
       userId: user.id, token, purpose: 'verify_email', expiresAt: expiresAt(VERIFY_TOKEN_TTL),
     });
 
-    const link = `${process.env.APP_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
-    console.log('\n========================================');
-    console.log(`[email] Verify ${user.email}:\n${link}`);
-    console.log('========================================\n');
+    const emailResult = await sendVerificationEmail({ email: user.email, name: user.name, token });
 
     await logAuthEvent({ userId: user.id, eventType: 'register', ...ctx, success: true, detail: `role=${requestedRole}` });
 
     res.status(201).json({
       message: 'Registration successful. Check your email to verify your account.',
       user: { id: user.id, name: user.name, email: user.email, role: user.role, emailVerified: false },
+      devMode: emailResult.devMode,
     });
   } catch (error) {
     console.error('[register]', error);
@@ -376,16 +375,13 @@ exports.forgotPassword = async (req, res) => {
       userId: row.id, token, purpose: 'reset_password', expiresAt: expiresAt(RESET_TOKEN_TTL),
     });
 
-    const link = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
-    console.log('\n========================================');
-    console.log(`[email] Password reset:\n${link}`);
-    console.log('========================================\n');
+    const emailResult = await sendPasswordResetEmail({ email: row.email, token });
 
     await logAuthEvent({ userId: row.id, eventType: 'password_reset_requested', ...ctx, success: true });
-    res.json(generic);
+    res.json({ ...generic, devMode: emailResult.devMode });
   } catch (error) {
     console.error('[forgotPassword]', error);
-    res.json({ message: 'If that email is registered, a reset link has been sent.' });
+    res.json({ message: 'If that email is registered, a reset link has been sent.', devMode: true });
   }
 };
 

@@ -77,7 +77,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       const res = await api.post('/auth/register', { name, email, password, role, phone });
-      return { success: true, message: res.data.message };
+      return { success: true, message: res.data.message, devMode: res.data.devMode };
     } catch (err) {
       const d = err.response?.data || {};
       return { success: false, message: d.message || 'Registration failed', errors: d.errors, breached: d.breached };

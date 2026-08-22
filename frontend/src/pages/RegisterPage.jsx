@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [breached, setBreached] = useState(false);
   const [done, setDone] = useState(false);
+  const [devMode, setDevMode] = useState(false);
 
   const { register, loading } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -30,7 +31,11 @@ export default function RegisterPage() {
       role: form.role, phone: form.phone,
     });
 
-    if (res.success) { setDone(true); return; }
+    if (res.success) {
+      setDevMode(Boolean(res.devMode));
+      setDone(true);
+      return;
+    }
     setError(res.message);
     setBreached(!!res.breached);
   };
@@ -48,10 +53,16 @@ export default function RegisterPage() {
             We sent a verification link to <span className="text-slate-200 font-semibold">{form.email}</span>.
             You must verify before signing in.
           </p>
-          <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-[11px] text-blue-300 text-left">
-            <strong>Development mode:</strong> email isn't actually sent. Open your
-            backend terminal — the verification link is printed there.
-          </div>
+          {devMode ? (
+            <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-[11px] text-blue-300 text-left">
+              <strong>Development mode:</strong> SMTP credentials are not configured in your <code>.env</code> file.
+              The verification link is printed in your backend terminal.
+            </div>
+          ) : (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-[11px] text-emerald-300 text-left">
+              <strong>Email dispatched!</strong> Please check your email inbox and spam folder for the verification link.
+            </div>
+          )}
           <Link to="/login" className="block w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition glow-blue">
             Go to Sign In
           </Link>

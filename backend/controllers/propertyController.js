@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Property = require('../models/Property');
 const Wishlist = require('../models/Wishlist');
 const { initialProperties } = require('../utils/seedData');
+const { findProperties, findPropertyById, insertProperty } = require('../db/properties');
 
 // With no live MongoDB connection, Mongoose buffers queries rather than
 // failing fast — `await Property.find()` would block for bufferTimeoutMS
@@ -17,7 +18,16 @@ exports.getAllProperties = async (req, res) => {
     const { city, minPrice, maxPrice, bedrooms, furnished, search, status } = req.query;
 
     let properties = [];
-    if (mongoReady()) {
+
+    // 1. Try Neon PostgreSQL first
+    try {
+      properties = await findProperties({ city, minPrice, maxPrice, bedrooms, furnished, search, status });
+    } catch (pgErr) {
+      properties = [];
+    }
+
+    // 2. Fallback to MongoDB if connected
+    if (properties.length === 0 && mongoReady()) {
       try {
         let query = {};
         if (status) query.status = status;
@@ -44,8 +54,8 @@ exports.getAllProperties = async (req, res) => {
       }
     }
 
+    // 3. Fallback to in-memory seed list
     if (properties.length === 0) {
-      // Use in-memory properties
       properties = inMemoryProperties.filter(p => {
         if (status && p.status !== status) return false;
         if (city && city !== 'All' && p.city.toLowerCase() !== city.toLowerCase()) return false;
@@ -94,13 +104,24 @@ exports.getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
     let property = null;
-    if (mongoReady()) {
+
+    // 1. Try Neon Postgres
+    try {
+      property = await findPropertyById(id);
+    } catch (pgErr) {
+      property = null;
+    }
+
+    // 2. Try MongoDB
+    if (!property && mongoReady()) {
       try {
         property = await Property.findById(id);
       } catch (err) {
         property = null;
       }
     }
+
+    // 3. Fallback to in-memory
     if (!property) {
       property = inMemoryProperties.find(p => p.id === id || p._id === id);
     }
@@ -136,16 +157,21 @@ exports.createProperty = async (req, res) => {
       createdAt: new Date()
     };
 
+    // 1. Save to Neon Postgres
+    try {
+      await insertProperty(newProp);
+    } catch (pgErr) {
+      console.warn('[properties] Postgres insert failed, falling back:', pgErr.message);
+    }
+
+    // 2. Save to Mongo if active
     if (mongoReady()) {
       try {
         await Property.create(newProp);
-      } catch (err) {
-        inMemoryProperties.unshift(newProp);
-      }
-    } else {
-      // No database — the listing survives only until this container recycles.
-      inMemoryProperties.unshift(newProp);
+      } catch (err) {}
     }
+
+    inMemoryProperties.unshift(newProp);
 
     res.status(201).json({ message: 'Property listed successfully', property: newProp });
   } catch (error) {
